@@ -18,6 +18,8 @@ type NodeDetail = {
   documents: { id: string; title: string; type: string }[];
   knowledgeSources: { id: string; title: string; status: string }[];
   connections: { edgeId: string; relationType: string; direction: string; nodeId: string; label: string }[];
+  excerpts: { source: string; text: string }[];
+  relatedKeywords: string[];
   extractionCount: number;
 };
 
@@ -295,6 +297,38 @@ export default function OntologyPage() {
                 </button>
               ))}
             </div>
+
+            {/* 관련 키워드 (연결된 노드) — 옵시디언처럼 클릭해 이동 */}
+            {detail && detail.relatedKeywords.length > 0 && (
+              <div className="mb-2 border-t border-white/10 pt-2">
+                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">관련 키워드</p>
+                <div className="flex flex-wrap gap-1">
+                  {detail.relatedKeywords.map((kw) => (
+                    <span
+                      key={kw}
+                      className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-300"
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 노드가 등장한 실제 문서 내용 (옵시디언 백링크 문맥) */}
+            {detail && detail.excerpts.length > 0 && (
+              <div className="mb-2 max-h-44 overflow-y-auto border-t border-white/10 pt-2">
+                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">문서 내용</p>
+                <ul className="space-y-1.5">
+                  {detail.excerpts.map((ex, i) => (
+                    <li key={i} className="rounded bg-white/5 p-2">
+                      <p className="mb-0.5 text-[9px] text-zinc-500">{ex.source}</p>
+                      <p className="text-[11px] leading-4 text-zinc-300">{ex.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* 실제 provenance: 이 노드가 추출된 문서/지식소스 */}
             {detail && detail.documents.length > 0 && (

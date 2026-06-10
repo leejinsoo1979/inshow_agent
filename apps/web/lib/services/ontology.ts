@@ -394,8 +394,10 @@ export async function getNodeDetail(userId: string, nodeId: string) {
   const provenance = Array.isArray(meta.sources) ? meta.sources : [];
   const documentIds = [...new Set(provenance.map((p) => p.documentId).filter(Boolean))] as string[];
   const sourceIds = [...new Set(provenance.map((p) => p.sourceId).filter(Boolean))] as string[];
+  // 노드가 실제로 등장한 블록/청크 id (옵시디언 백링크 문맥용)
+  const unitIds = [...new Set(provenance.map((p) => p.unitId).filter(Boolean))] as string[];
 
-  const [documents, knowledgeSources, edges] = await Promise.all([
+  const [documents, knowledgeSources, edges, blocks, chunks] = await Promise.all([
     prisma.document.findMany({
       where: { id: { in: documentIds } },
       select: { id: true, title: true, type: true, updatedAt: true },
@@ -410,7 +412,34 @@ export async function getNodeDetail(userId: string, nodeId: string) {
         OR: [{ sourceNodeId: nodeId }, { targetNodeId: nodeId }],
       },
     }),
+    prisma.documentBlock.findMany({
+      where: { id: { in: unitIds } },
+      select: { id: true, type: true, content: true, documentId: true },
+    }),
+    prisma.knowledgeChunk.findMany({
+      where: { id: { in: unitIds } },
+      select: { id: true, text: true, sourceId: true },
+    }),
   ]);
+
+  // 노드 라벨이 들어간 문장만 추려서 발췌(문맥)로 제공
+  const docTitleById = new Map(documents.map((d) => [d.id, d.title]));
+  const excerpts: { source: string; text: string }[] = [];
+  for (const b of blocks) {
+    const c = b.content as { text?: string; title?: string; caption?: string; summary?: string };
+    const text = (c.text ?? c.title ?? c.summary ?? c.caption ?? '').trim();
+    if (text) {
+      excerpts.push({
+        source: docTitleById.get(b.documentId) ?? '문서',
+        text: highlightAround(text, node.label),
+      });
+    }
+  }
+  for (const c of chunks) {
+    if (c.text.trim()) {
+      excerpts.push({ source: '지식소스', text: highlightAround(c.text, node.label) });
+    }
+  }
 
   const otherIds = edges.map((e) => (e.sourceNodeId === nodeId ? e.targetNodeId : e.sourceNodeId));
   const otherNodes = await prisma.ontologyNode.findMany({
@@ -440,8 +469,21 @@ export async function getNodeDetail(userId: string, nodeId: string) {
         label: labelById.get(otherId) ?? '?',
       };
     }),
+    // 노드가 등장한 실제 문장 발췌 (옵시디언 백링크 문맥)
+    excerpts: excerpts.slice(0, 6),
+    // 연결된 노드 = 관련 키워드
+    relatedKeywords: otherNodes.map((n) => n.label),
     extractionCount: provenance.length,
   };
+}
+
+/** 라벨이 들어간 문장 위주로 잘라낸다 (라벨 주변 문맥) */
+function highlightAround(text: string, label: string): string {
+  const idx = text.indexOf(label);
+  if (idx === -1) return text.slice(0, 160) + (text.length > 160 ? '…' : '');
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(text.length, idx + label.length + 100);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
 }
 
 /** 샘플 온톨로지 시드 (그래프 뷰어 확인용) */
