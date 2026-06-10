@@ -179,11 +179,23 @@ export function CanvasView({
     async (id: string) => {
       onSelectBlock(null);
       setEditingId(null);
+      // 낙관적 삭제: 화면에서 즉시 제거하고 API는 백그라운드로. 실패 시에만 복구.
+      const pending = contentTimers.current.get(id);
+      if (pending) {
+        clearTimeout(pending);
+        contentTimers.current.delete(id);
+      }
+      setDoc((prev) => (prev ? { ...prev, blocks: prev.blocks.filter((b) => b.id !== id) } : prev));
+      setLayouts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       try {
         await apiFetch(`/api/blocks/${id}`, { method: 'DELETE' });
-        load();
       } catch (e) {
         setError((e as Error).message);
+        load(); // 실패 시 서버 상태로 복구
       }
     },
     [onSelectBlock, load],
