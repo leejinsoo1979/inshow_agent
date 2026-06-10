@@ -1,0 +1,36 @@
+{
+  "name": "archi-agent-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "건축·인테리어 전문 AI 워크스페이스",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p apps/web/tsconfig.json --noEmit && tsc -p packages/tsconfig.packages.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w packages/db",
+    "db:generate": "npm run generate -w packages/db",
+    "db:studio": "npm run studio -w packages/db"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,116 @@
+import { z } from 'zod';
+
+/**
+ * 문서 블록 스키마. DATA_MODEL.md 2장 Block Content JSON 참조.
+ * DB에는 type(string) + content(Json)로 저장되고, 앱 레이어에서 이 스키마로 검증한다.
+ */
+
+export const BlockTypes = {
+  HEADING: 'heading',
+  PARAGRAPH: 'paragraph',
+  IMAGE: 'image',
+  CHECKLIST: 'checklist',
+  SOURCE_REFERENCE: 'source_reference',
+  CTA: 'cta',
+} as const;
+
+export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
+
+export const headingContentSchema = z.object({
+  level: z.number().int().min(1).max(3),
+  text: z.string(),
+});
+
+export const paragraphContentSchema = z.object({
+  text: z.string(),
+  tone: z.string().optional(),
+  seoKeywords: z.array(z.string()).optional(),
+});
+
+export const imageContentSchema = z.object({
+  imageAssetId: z.string().optional(),
+  versionId: z.string().optional(),
+  url: z.string().optional(),
+  caption: z.string().optional(),
+});
+
+export const checklistContentSchema = z.object({
+  title: z.string().optional(),
+  items: z.array(
+    z.object({
+      text: z.string(),
+      checked: z.boolean().default(false),
+    }),
+  ),
+});
+
+export const sourceReferenceContentSchema = z.object({
+  title: z.string(),
+  summary: z.string().optional(),
+  citations: z.array(z.string()).default([]),
+});
+
+export const ctaContentSchema = z.object({
+  text: z.string(),
+  buttonLabel: z.string().optional(),
+  url: z.string().optional(),
+});
+
+export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
+  heading: headingContentSchema,
+  paragraph: paragraphContentSchema,
+  image: imageContentSchema,
+  checklist: checklistContentSchema,
+  source_reference: sourceReferenceContentSchema,
+  cta: ctaContentSchema,
+};
+
+export const blockTypeSchema = z.enum([
+  'heading',
+  'paragraph',
+  'image',
+  'checklist',
+  'source_reference',
+  'cta',
+]);
+
+export const blockInputSchema = z
+  .object({
+    type: blockTypeSchema,
+    content: z.record(z.unknown()),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const schema = blockContentSchemas[value.type];
+    const result = schema.safeParse(value.content);
+    if (!result.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `'${value.type}' 블록 내용이 올바르지 않습니다.`,
+        path: ['content'],
+        params: { issues: result.error.issues },
+      });
+    }
+  });
+
+export type BlockInput = z.infer<typeof blockInputSchema>;
+
+export type HeadingContent = z.infer<typeof headingContentSchema>;
+export type ParagraphContent = z.infer<typeof paragraphContentSchema>;
+export type ImageContent = z.infer<typeof imageContentSchema>;
+export type ChecklistContent = z.infer<typeof checklistContentSchema>;
+export type SourceReferenceContent = z.infer<typeof sourceReferenceContentSchema>;
+export type CtaContent = z.infer<typeof ctaContentSchema>;
+
+/** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
+export function parseBlockContent(type: string, content: unknown) {
+  const blockType = blockTypeSchema.safeParse(type);
+  if (!blockType.success) {
+    throw new Error(`지원하지 않는 블록 타입입니다: ${type}`);
+  }
+  const result = blockContentSchemas[blockType.data].safeParse(content);
+  if (!result.success) {
+    throw new Error(`'${type}' 블록 내용이 올바르지 않습니다.`);
+  }
+  return result.data as unknown;
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "db/src/**/*.ts",
+    "shared/src/**/*.ts",
+    "ai/src/**/*.ts",
+    "editor/src/**/*.ts",
+    "export/src/**/*.ts"
+  ]
+}

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: archi-agent-postgres
+    environment:
+      POSTGRES_USER: archi
+      POSTGRES_PASSWORD: archi_dev
+      POSTGRES_DB: archi_agent
+    ports:
+      - '5433:5432'
+    volumes:
+      - archi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U archi -d archi_agent']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  archi_pgdata:
