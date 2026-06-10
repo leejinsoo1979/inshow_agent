@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/build/**',
       '**/coverage/**',
       '**/*.config.*',
+      '**/next-env.d.ts',
       'packages/db/prisma/generated/**',
     ],
   },

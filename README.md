@@ -19,4 +19,42 @@
 
 ## 시작하기
 
-아직 코드 구현 전 단계다. `docs/CLAUDE_CODE_EXECUTION_PROMPTS.md`의 Prompt 0부터 순서대로 실행하여 구현을 진행한다. 각 단계마다 테스트와 git commit을 수행한다.
+```bash
+# 1. 의존성 설치 (npm workspaces 모노레포)
+npm install
+
+# 2. 로컬 PostgreSQL 실행 (Docker 필요)
+npm run db:up
+
+# 3. 환경 변수 설정
+cp .env.example .env
+
+# 4. DB 마이그레이션
+npm run db:migrate
+
+# 5. 개발 서버 실행
+npm run dev
+```
+
+## 구조
+
+```
+apps/web          Next.js 웹앱 (UI + API Route Handlers)
+packages/db       Prisma schema, migrations, db client
+packages/shared   공용 타입, zod 스키마, 에러/권한 모델
+packages/ai       LLM provider adapter, agent action
+packages/editor   블록 스키마와 에디터 유틸
+packages/export   TXT/Markdown/PDF exporter
+```
+
+## 명령어
+
+| 명령 | 설명 |
+|---|---|
+| `npm run dev` | 개발 서버 |
+| `npm run build` | 프로덕션 빌드 |
+| `npm test` | 전체 테스트 (vitest) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript 타입 검사 |
+| `npm run db:up` / `db:down` | 로컬 Postgres 시작/종료 |
+| `npm run db:migrate` | Prisma 마이그레이션 |
