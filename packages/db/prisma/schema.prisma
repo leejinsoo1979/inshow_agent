@@ -106,8 +106,24 @@ model DocumentBlock {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  citations  Citation[]
 
   @@index([documentId, sortOrder])
+}
+
+model Citation {
+  id          String         @id @default(cuid())
+  blockId     String?
+  url         String?
+  title       String
+  publisher   String?
+  quote       String?
+  sourceType  String?
+  retrievedAt DateTime?
+  createdAt   DateTime       @default(now())
+  block       DocumentBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
+
+  @@index([blockId])
 }
 
 model ChatSession {

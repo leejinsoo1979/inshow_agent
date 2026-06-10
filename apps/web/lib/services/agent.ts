@@ -1,14 +1,26 @@
 import { prisma, type Prisma } from '@archi/db';
 import {
   agentActionSchema,
+  MockSearchProvider,
   planAgentResponse,
+  requiresCitation,
   type AgentActionInput,
+  type SearchResult,
 } from '@archi/ai';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireDocumentCapability } from '../authz';
 import { writeAuditLog } from '../audit';
 import { addBlock, updateBlock } from './blocks';
+
+type CitationDraft = {
+  title: string;
+  url?: string;
+  publisher?: string;
+  quote?: string;
+  sourceType?: string;
+  retrievedAt?: string;
+};
 
 export const chatRequestSchema = z.object({
   chatSessionId: z.string().optional(),
@@ -59,12 +71,20 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     selectedBlockText = content?.text;
   }
 
+  // 법규/공법 질문이면 출처 검색을 먼저 수행한다 (citation 없는 확답 금지)
+  let searchResults: SearchResult[] | undefined;
+  if (requiresCitation(input.message)) {
+    const provider = new MockSearchProvider();
+    searchResults = await provider.search(input.message, { limit: 5 });
+  }
+
   const plan = planAgentResponse({
     message: input.message,
     documentId: document.id,
     documentTitle: document.title,
     selectedBlockId,
     selectedBlockText,
+    searchResults,
   });
 
   // 액션은 저장 전 서버에서 zod 재검증한다 (allowlist + schema)
@@ -104,6 +124,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
   return {
     chatSessionId: chatSession.id,
     reply: { id: assistantMessage.id, text: plan.reply },
+    sources: searchResults ?? [],
     actions: actions.map((a) => ({
       id: a.id,
       type: a.type,
@@ -206,6 +227,36 @@ async function executeAction(userId: string, action: AgentActionInput) {
           afterBlockId,
           block,
         });
+        // 출처 블록이면 citation draft를 실제 Citation 레코드로 생성한다
+        const drafts = (block.metadata as { citationDrafts?: CitationDraft[] } | undefined)
+          ?.citationDrafts;
+        if (block.type === 'source_reference' && Array.isArray(drafts) && drafts.length > 0) {
+          const citations = await Promise.all(
+            drafts.map((d) =>
+              prisma.citation.create({
+                data: {
+                  blockId: created.id,
+                  title: d.title,
+                  url: d.url,
+                  publisher: d.publisher,
+                  quote: d.quote,
+                  sourceType: d.sourceType,
+                  retrievedAt: d.retrievedAt ? new Date(d.retrievedAt) : null,
+                },
+              }),
+            ),
+          );
+          const content = created.content as Record<string, unknown>;
+          await prisma.documentBlock.update({
+            where: { id: created.id },
+            data: {
+              content: {
+                ...content,
+                citations: citations.map((c) => c.id),
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
         inserted.push(created.id);
         afterBlockId = created.id;
       }

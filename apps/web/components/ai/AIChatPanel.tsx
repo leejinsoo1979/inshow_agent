@@ -12,9 +12,19 @@ type ActionPreview = {
   status: string;
 };
 
+type SourceCard = {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string;
+  snippet: string;
+  sourceType: string;
+};
+
 type ChatItem =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string; streaming?: boolean }
+  | { kind: 'sources'; sources: SourceCard[] }
   | { kind: 'actions'; actions: ActionPreview[] };
 
 type Props = {
@@ -81,6 +91,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
       const result = await apiFetch<{
         chatSessionId: string;
         reply: { text: string };
+        sources: SourceCard[];
         actions: ActionPreview[];
       }>('/api/ai/chat', {
         method: 'POST',
@@ -93,6 +104,9 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
       });
       setSessionId(result.chatSessionId);
       await streamAssistantText(result.reply.text);
+      if (result.sources.length > 0) {
+        setItems((prev) => [...prev, { kind: 'sources', sources: result.sources }]);
+      }
       if (result.actions.length > 0) {
         setItems((prev) => [...prev, { kind: 'actions', actions: result.actions }]);
       }
@@ -155,6 +169,36 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
               <div key={i} className="mr-6 rounded-2xl rounded-tl-sm bg-white/5 px-3.5 py-2.5 text-sm leading-6">
                 {item.text}
                 {item.streaming && <span className="animate-pulse">▍</span>}
+              </div>
+            );
+          }
+          if (item.kind === 'sources') {
+            return (
+              <div key={i} className="mr-4 space-y-2">
+                {item.sources.map((source) => (
+                  <a
+                    key={source.id}
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-xl border border-white/10 bg-white/5 p-3 hover:border-violet-400/50"
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                        {source.sourceType === 'official_law'
+                          ? '공식 법령'
+                          : source.sourceType === 'kcsc'
+                            ? 'KCSC'
+                            : '출처'}
+                      </span>
+                      <span className="text-[11px] text-zinc-400">{source.publisher}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-100">{source.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-400">
+                      {source.snippet}
+                    </p>
+                  </a>
+                ))}
               </div>
             );
           }

@@ -1,5 +1,7 @@
 import type { GenerateTextInput, GenerateTextResult, LlmProvider, StreamChunk } from './llm-provider';
 import type { AgentActionInput } from './agent-actions';
+import { detectQuestionIntent } from './intent';
+import type { SearchResult } from './search-provider';
 
 /**
  * Mock LLM provider.
@@ -13,6 +15,8 @@ export type AgentPlanInput = {
   documentTitle?: string;
   selectedBlockId?: string;
   selectedBlockText?: string;
+  /** 법규/공법 질문일 때 서비스가 검색해서 전달하는 결과 */
+  searchResults?: SearchResult[];
 };
 
 export type AgentPlan = {
@@ -24,6 +28,57 @@ const BLOG_KEYWORDS = ['블로그', '초안', '글 써', '글써', '작성해'];
 const EDIT_KEYWORDS = ['바꿔', '수정', '고쳐', '다듬어', '톤'];
 
 export function planAgentResponse(input: AgentPlanInput): AgentPlan {
+  // 법규/공법 질문: citation 없는 확답 금지 (CLAUDE.md 규칙 4)
+  const intent = detectQuestionIntent(input.message);
+  if (intent !== 'general') {
+    const results = input.searchResults ?? [];
+    if (results.length === 0) {
+      return {
+        reply:
+          '해당 질문은 법규/시공 기준과 관련되어 있어 공식 출처 확인이 필요합니다. 현재 신뢰할 수 있는 출처를 찾지 못해 확답을 드릴 수 없습니다. 법제처 국가법령정보센터 또는 국가건설기준센터(KCSC)에서 원문을 확인해 주세요.',
+        actions: [],
+      };
+    }
+    const top = results[0]!;
+    const summary = results
+      .slice(0, 3)
+      .map((r) => `- ${r.title} (${r.publisher})`)
+      .join('\n');
+    return {
+      reply: `공식 출처 기준으로 정리했습니다.\n\n${top.snippet}\n\n참고한 출처:\n${summary}\n\n승인하시면 출처 블록을 문서에 추가합니다. 적용 전 원문 확인을 권장합니다.`,
+      actions: [
+        {
+          action_type: 'insert_blocks',
+          target: { documentId: input.documentId },
+          payload: {
+            blocks: [
+              {
+                type: 'source_reference',
+                content: {
+                  title: intent === 'legal' ? '관련 법규 검토' : '시공 기준 검토',
+                  summary: top.snippet,
+                  citations: [],
+                },
+                metadata: {
+                  citationDrafts: results.slice(0, 3).map((r) => ({
+                    title: r.title,
+                    url: r.url,
+                    publisher: r.publisher,
+                    quote: r.snippet,
+                    sourceType: r.sourceType,
+                    retrievedAt: r.retrievedAt,
+                  })),
+                },
+              },
+            ],
+          },
+          requires_approval: true,
+          risk_level: 'low',
+        },
+      ],
+    };
+  }
+
   const wantsEdit = Boolean(input.selectedBlockId) && EDIT_KEYWORDS.some((k) => input.message.includes(k));
   if (wantsEdit && input.selectedBlockId) {
     const revised = reviseText(input.selectedBlockText ?? '', input.message);
