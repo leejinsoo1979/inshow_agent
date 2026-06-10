@@ -54,7 +54,8 @@ export default function SettingsPage() {
     const params = new URLSearchParams(window.location.search);
     const oauth = params.get('oauth');
     if (oauth === 'connected') {
-      setNotice('Claude 계정이 연결되었습니다. 이제 AI 에이전트가 실제 모델로 응답합니다.');
+      const which = params.get('provider') === 'openai' ? 'ChatGPT' : 'Claude';
+      setNotice(`${which} 계정이 연결되었습니다. 이제 AI 에이전트가 실제 모델로 응답합니다.`);
     } else if (oauth === 'error') {
       setError(`Claude 계정 연결 실패: ${params.get('reason') ?? '알 수 없는 오류'}`);
     }
@@ -118,25 +119,38 @@ export default function SettingsPage() {
           {notice && <p className="mb-4 text-sm text-zinc-700">{notice}</p>}
 
           <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-800">Claude 계정으로 연결 (OAuth)</h2>
+            <h2 className="mb-1 text-sm font-semibold text-zinc-800">LLM 계정으로 연결 (OAuth)</h2>
             <p className="mb-4 text-xs text-zinc-500">
-              API 키 없이 Claude 계정(Pro/Max 구독)으로 로그인해 에이전트를 연결합니다. 토큰은
-              암호화 저장되며 만료 시 자동 갱신됩니다.
+              API 키 없이 구독 계정으로 로그인해 에이전트를 연결합니다. 토큰은 암호화 저장되며
+              만료 시 자동 갱신됩니다.
             </p>
-            <button
-              onClick={() => {
-                if (workspaceId) {
-                  window.location.href = `/api/settings/llm/oauth/anthropic/start?workspaceId=${workspaceId}`;
-                }
-              }}
-              disabled={!workspaceId || busy}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
-            >
-              Claude 계정으로 연결 →
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  if (workspaceId) {
+                    window.location.href = `/api/settings/llm/oauth/anthropic/start?workspaceId=${workspaceId}`;
+                  }
+                }}
+                disabled={!workspaceId || busy}
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
+              >
+                Claude 계정으로 연결 →
+              </button>
+              <button
+                onClick={() => {
+                  if (workspaceId) {
+                    window.location.href = `/api/settings/llm/oauth/openai/start?workspaceId=${workspaceId}`;
+                  }
+                }}
+                disabled={!workspaceId || busy}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 hover:border-zinc-900 disabled:opacity-50"
+              >
+                ChatGPT 계정으로 연결 →
+              </button>
+            </div>
             <p className="mt-2 text-[11px] text-zinc-400">
-              ANTHROPIC_OAUTH_CLIENT_ID 환경변수가 설정되어 있어야 합니다 (Anthropic의 “Sign in
-              with Claude” 베타 클라이언트).
+              각각 ANTHROPIC_OAUTH_CLIENT_ID / OPENAI_OAUTH_CLIENT_ID 환경변수가 필요합니다
+              (각 사의 OAuth 앱 클라이언트 ID).
             </p>
           </section>
 
@@ -150,11 +164,14 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <select
                   value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
+                  onChange={(e) => {
+                    setProvider(e.target.value);
+                    setModel(e.target.value === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6');
+                  }}
                   className="rounded-lg border border-zinc-300 px-2 py-2 text-sm"
                 >
                   <option value="anthropic">Anthropic (Claude)</option>
-                  <option value="openai">OpenAI (등록만, 어댑터 예정)</option>
+                  <option value="openai">OpenAI (GPT)</option>
                   <option value="custom">Custom</option>
                 </select>
                 <input

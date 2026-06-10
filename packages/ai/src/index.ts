@@ -2,6 +2,7 @@ export * from './llm-provider';
 export * from './agent-actions';
 export * from './mock-llm';
 export * from './anthropic';
+export * from './openai';
 export * from './search-provider';
 export * from './mock-search';
 export * from './intent';

@@ -1,5 +1,5 @@
 import { prisma } from '@archi/db';
-import { AnthropicProvider, MockLlmProvider, type LlmProvider } from '@archi/ai';
+import { AnthropicProvider, MockLlmProvider, OpenAIProvider, type LlmProvider } from '@archi/ai';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireWorkspaceCapability } from '../authz';
@@ -99,41 +99,62 @@ function toSafeConfig(
   };
 }
 
-// ─── Claude 계정 OAuth (Sign in with Claude) ────────────────────────────────
+// ─── LLM 계정 OAuth (Claude / ChatGPT) ──────────────────────────────────────
 
-const ANTHROPIC_OAUTH = {
-  authorizeUrl: 'https://claude.ai/oauth/authorize',
-  tokenUrl: 'https://console.anthropic.com/v1/oauth/token',
-  scope: 'org:create_api_key user:profile user:inference',
-};
+export const OAUTH_PROVIDERS = {
+  anthropic: {
+    label: 'Claude',
+    authorizeUrl: 'https://claude.ai/oauth/authorize',
+    tokenUrl: 'https://console.anthropic.com/v1/oauth/token',
+    scope: 'org:create_api_key user:profile user:inference',
+    clientIdEnv: 'ANTHROPIC_OAUTH_CLIENT_ID',
+    /** 토큰 엔드포인트 본문 형식 */
+    tokenBody: 'json' as 'json' | 'form',
+    extraAuthParams: { code: 'true' } as Record<string, string>,
+  },
+  openai: {
+    label: 'ChatGPT',
+    authorizeUrl: 'https://auth.openai.com/oauth/authorize',
+    tokenUrl: 'https://auth.openai.com/oauth/token',
+    scope: 'openid profile email offline_access',
+    clientIdEnv: 'OPENAI_OAUTH_CLIENT_ID',
+    tokenBody: 'form' as 'json' | 'form',
+    extraAuthParams: {} as Record<string, string>,
+  },
+} as const;
 
-export function anthropicOAuthClientId(): string | null {
-  return process.env.ANTHROPIC_OAUTH_CLIENT_ID || null;
+export type OAuthProviderKey = keyof typeof OAUTH_PROVIDERS;
+
+export function isOAuthProvider(value: string): value is OAuthProviderKey {
+  return value in OAUTH_PROVIDERS;
 }
 
-export function buildAnthropicAuthorizeUrl(input: {
-  redirectUri: string;
-  state: string;
-  codeChallenge: string;
-}): string {
-  const clientId = anthropicOAuthClientId();
+export function oauthClientId(provider: OAuthProviderKey): string | null {
+  return process.env[OAUTH_PROVIDERS[provider].clientIdEnv] || null;
+}
+
+export function buildOAuthAuthorizeUrl(
+  provider: OAuthProviderKey,
+  input: { redirectUri: string; state: string; codeChallenge: string },
+): string {
+  const meta = OAUTH_PROVIDERS[provider];
+  const clientId = oauthClientId(provider);
   if (!clientId) {
     throw new AppError(ErrorCodes.VALIDATION_FAILED, {
-      message:
-        'Claude 계정 연결이 설정되지 않았습니다. ANTHROPIC_OAUTH_CLIENT_ID 환경변수를 추가해 주세요.',
+      message: `${meta.label} 계정 연결이 설정되지 않았습니다. ${meta.clientIdEnv} 환경변수를 추가해 주세요.`,
     });
   }
   const params = new URLSearchParams({
-    code: 'true',
+    ...meta.extraAuthParams,
     client_id: clientId,
     response_type: 'code',
     redirect_uri: input.redirectUri,
-    scope: ANTHROPIC_OAUTH.scope,
+    scope: meta.scope,
     state: input.state,
     code_challenge: input.codeChallenge,
     code_challenge_method: 'S256',
   });
-  return `${ANTHROPIC_OAUTH.authorizeUrl}?${params.toString()}`;
+  return `${meta.authorizeUrl}?${params.toString()}`;
 }
 
 type OAuthTokens = {
@@ -142,50 +163,65 @@ type OAuthTokens = {
   expires_in?: number;
 };
 
-export async function exchangeAnthropicCode(input: {
-  code: string;
-  state: string;
-  redirectUri: string;
-  codeVerifier: string;
-}): Promise<OAuthTokens> {
-  const clientId = anthropicOAuthClientId();
+async function postToken(
+  provider: OAuthProviderKey,
+  payload: Record<string, string>,
+): Promise<Response> {
+  const meta = OAUTH_PROVIDERS[provider];
+  if (meta.tokenBody === 'form') {
+    return fetch(meta.tokenUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(payload).toString(),
+    });
+  }
+  return fetch(meta.tokenUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function exchangeOAuthCode(
+  provider: OAuthProviderKey,
+  input: { code: string; state: string; redirectUri: string; codeVerifier: string },
+): Promise<OAuthTokens> {
+  const meta = OAUTH_PROVIDERS[provider];
+  const clientId = oauthClientId(provider);
   if (!clientId) {
     throw new AppError(ErrorCodes.VALIDATION_FAILED, { message: 'OAuth 클라이언트 미설정.' });
   }
-  const response = await fetch(ANTHROPIC_OAUTH.tokenUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      code: input.code,
-      state: input.state,
-      client_id: clientId,
-      redirect_uri: input.redirectUri,
-      code_verifier: input.codeVerifier,
-    }),
+  const response = await postToken(provider, {
+    grant_type: 'authorization_code',
+    code: input.code,
+    state: input.state,
+    client_id: clientId,
+    redirect_uri: input.redirectUri,
+    code_verifier: input.codeVerifier,
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     throw new AppError(ErrorCodes.INTERNAL_ERROR, {
-      message: `Claude 계정 연결에 실패했습니다 (${response.status}). ${body.slice(0, 200)}`,
+      message: `${meta.label} 계정 연결에 실패했습니다 (${response.status}). ${body.slice(0, 200)}`,
     });
   }
   return (await response.json()) as OAuthTokens;
 }
 
-/** OAuth 토큰을 암호화 저장 (기존 anthropic 설정은 교체) */
-export async function saveAnthropicOAuthConfig(
+/** OAuth 토큰을 암호화 저장 (해당 provider 기존 설정은 교체) */
+export async function saveOAuthConfig(
   userId: string,
   workspaceId: string,
+  provider: OAuthProviderKey,
   tokens: OAuthTokens,
   model?: string,
 ) {
   await requireWorkspaceCapability(userId, workspaceId, Capabilities.MANAGE_LLM_PROVIDERS);
-  await prisma.llmProviderConfig.deleteMany({ where: { workspaceId, provider: 'anthropic' } });
+  await prisma.llmProviderConfig.deleteMany({ where: { workspaceId, provider } });
   const config = await prisma.llmProviderConfig.create({
     data: {
       workspaceId,
-      provider: 'anthropic',
+      provider,
       authType: 'oauth',
       model: model ?? null,
       encryptedAccessToken: encryptSecret(tokens.access_token),
@@ -199,18 +235,21 @@ export async function saveAnthropicOAuthConfig(
     action: 'llm_config.oauth_connect',
     targetType: 'LlmProviderConfig',
     targetId: config.id,
-    after: { provider: 'anthropic', authType: 'oauth' },
+    after: { provider, authType: 'oauth' },
   });
   return toSafeConfig(config, '');
 }
 
 /** 만료(60초 전) 시 refresh token으로 access token 자동 갱신 */
-async function ensureFreshOAuthToken(config: {
-  id: string;
-  encryptedAccessToken: string | null;
-  encryptedRefreshToken: string | null;
-  tokenExpiresAt: Date | null;
-}): Promise<string> {
+async function ensureFreshOAuthToken(
+  provider: OAuthProviderKey,
+  config: {
+    id: string;
+    encryptedAccessToken: string | null;
+    encryptedRefreshToken: string | null;
+    tokenExpiresAt: Date | null;
+  },
+): Promise<string> {
   if (!config.encryptedAccessToken) {
     throw new Error('저장된 OAuth 토큰이 없습니다.');
   }
@@ -218,19 +257,15 @@ async function ensureFreshOAuthToken(config: {
     !config.tokenExpiresAt || config.tokenExpiresAt.getTime() - Date.now() > 60_000;
   if (stillValid) return decryptSecret(config.encryptedAccessToken);
 
-  const clientId = anthropicOAuthClientId();
+  const clientId = oauthClientId(provider);
   if (!clientId || !config.encryptedRefreshToken) {
     // 갱신 불가 — 만료된 토큰이라도 시도는 가능하게 반환
     return decryptSecret(config.encryptedAccessToken);
   }
-  const response = await fetch(ANTHROPIC_OAUTH.tokenUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'refresh_token',
-      refresh_token: decryptSecret(config.encryptedRefreshToken),
-      client_id: clientId,
-    }),
+  const response = await postToken(provider, {
+    grant_type: 'refresh_token',
+    refresh_token: decryptSecret(config.encryptedRefreshToken),
+    client_id: clientId,
   });
   if (!response.ok) {
     return decryptSecret(config.encryptedAccessToken);
@@ -259,25 +294,31 @@ export async function getLlmProviderForWorkspace(workspaceId: string): Promise<L
     orderBy: { createdAt: 'desc' },
   });
   if (!config) return new MockLlmProvider();
+
+  const common = {
+    model: config.model ?? undefined,
+    baseUrl: config.baseUrl ?? undefined,
+  };
+
   switch (config.provider) {
     case 'anthropic': {
       if (config.authType === 'oauth') {
-        const authToken = await ensureFreshOAuthToken(config);
-        return new AnthropicProvider({
-          authToken,
-          model: config.model ?? undefined,
-          baseUrl: config.baseUrl ?? undefined,
-        });
+        const authToken = await ensureFreshOAuthToken('anthropic', config);
+        return new AnthropicProvider({ authToken, ...common });
       }
       if (!config.encryptedApiKey) return new MockLlmProvider();
-      return new AnthropicProvider({
-        apiKey: decryptSecret(config.encryptedApiKey),
-        model: config.model ?? undefined,
-        baseUrl: config.baseUrl ?? undefined,
-      });
+      return new AnthropicProvider({ apiKey: decryptSecret(config.encryptedApiKey), ...common });
+    }
+    case 'openai': {
+      if (config.authType === 'oauth') {
+        const authToken = await ensureFreshOAuthToken('openai', config);
+        return new OpenAIProvider({ authToken, ...common });
+      }
+      if (!config.encryptedApiKey) return new MockLlmProvider();
+      return new OpenAIProvider({ apiKey: decryptSecret(config.encryptedApiKey), ...common });
     }
     default:
-      // openai/custom 어댑터는 추후 추가. 등록은 가능하나 실행은 mock으로 폴백.
+      // custom 어댑터는 추후 추가. 등록은 가능하나 실행은 mock으로 폴백.
       return new MockLlmProvider();
   }
 }

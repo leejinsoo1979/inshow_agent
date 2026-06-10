@@ -9,7 +9,7 @@ import {
   getLlmProviderForWorkspace,
   listLlmConfigs,
   registerLlmConfig,
-  saveAnthropicOAuthConfig,
+  saveOAuthConfig,
 } from './llm-config';
 import { createProject } from './projects';
 import { createDocument, getDocument } from './documents';
@@ -63,7 +63,7 @@ describe('LLM API 등록', () => {
   it('Claude 계정 OAuth 연결: 토큰 암호화 저장, 마스킹 표시, provider 선택', async () => {
     const { user, workspace } = await createUserWithWorkspace(); // OWNER
 
-    const config = await saveAnthropicOAuthConfig(user.id, workspace.id, {
+    const config = await saveOAuthConfig(user.id, workspace.id, 'anthropic', {
       access_token: 'oauth-access-비밀토큰-9999',
       refresh_token: 'oauth-refresh-비밀-8888',
       expires_in: 3600,
@@ -96,8 +96,32 @@ describe('LLM API 등록', () => {
     const { organization, workspace } = await createUserWithWorkspace();
     const editor = await addMember(organization.id, Roles.EDITOR);
     await expect(
-      saveAnthropicOAuthConfig(editor.id, workspace.id, { access_token: 'tok' }),
+      saveOAuthConfig(editor.id, workspace.id, 'anthropic', { access_token: 'tok' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('OpenAI: API 키 등록과 ChatGPT 계정 OAuth 모두 openai provider로 선택된다', async () => {
+    const { user, workspace } = await createUserWithWorkspace();
+
+    // API 키 방식
+    await registerLlmConfig(user.id, {
+      workspaceId: workspace.id,
+      provider: 'openai',
+      apiKey: 'sk-proj-test-abcd1234',
+      model: 'gpt-4o',
+    });
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('openai');
+
+    // ChatGPT 계정 OAuth 방식 (교체)
+    const config = await saveOAuthConfig(user.id, workspace.id, 'openai', {
+      access_token: 'chatgpt-oauth-토큰-7777',
+      expires_in: 3600,
+    });
+    expect(config.authType).toBe('oauth');
+    expect(JSON.stringify(await listLlmConfigs(user.id, workspace.id))).not.toContain(
+      'chatgpt-oauth',
+    );
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('openai');
   });
 
   it('등록된 provider가 선택되고, 삭제하면 mock으로 돌아간다', async () => {
