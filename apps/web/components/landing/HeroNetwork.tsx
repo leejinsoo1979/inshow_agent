@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * 레퍼런스(v0-jarvis) 히어로의 constellation 네트워크 클론.
- * 떠다니는 노드들을 거리 기반으로 선으로 연결한다. 우측에 밀도가 높고 좌측으로 페이드.
+ * 레퍼런스(v0-jarvis) 히어로 constellation 재현.
+ * 핵심 특징: 블루 라인/도트, 클러스터(군집) 분포, 허브 노드의 화이트 코어 + 블루 글로우.
  */
 export function HeroNetwork() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,12 +25,18 @@ export function HeroNetwork() {
       vx: number;
       vy: number;
       r: number;
-      blue: boolean;
+      hub: boolean;
+      cluster: number;
     };
     let particles: Particle[] = [];
 
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
-    const LINK_DIST = 150;
+    const LINK_DIST = 95;
+
+    function gauss() {
+      // Box-Muller 근사
+      return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    }
 
     function resize() {
       const rect = canvas!.getBoundingClientRect();
@@ -40,17 +46,26 @@ export function HeroNetwork() {
       canvas!.height = height * DPR;
       ctx!.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-      const count = Math.min(Math.floor((width * height) / 4200), 320);
-      particles = Array.from({ length: count }, () => {
-        // 우측으로 밀도 편향 (레퍼런스처럼 헤드라인 반대편에 군집)
-        const bias = Math.pow(Math.random(), 0.6);
+      // 우측 편향 클러스터 중심 생성 → 별자리처럼 패치 단위로 뭉친다
+      const clusterCount = Math.max(7, Math.floor(width / 180));
+      const centers = Array.from({ length: clusterCount }, () => ({
+        x: width * (0.35 + Math.random() * 0.68),
+        y: height * (0.02 + Math.random() * 0.96),
+        spread: 70 + Math.random() * 120,
+      }));
+
+      const total = Math.min(Math.floor((width * height) / 2800), 480);
+      particles = Array.from({ length: total }, (_, i) => {
+        const ci = i % centers.length;
+        const c = centers[ci]!;
         return {
-          x: width * (0.18 + bias * 0.82) * (Math.random() < 0.15 ? Math.random() : 1),
-          y: Math.random() * height,
-          vx: (Math.random() - 0.5) * 0.35,
-          vy: (Math.random() - 0.5) * 0.35,
-          r: Math.random() < 0.22 ? 2.2 : 1.3,
-          blue: Math.random() < 0.35,
+          x: c.x + gauss() * c.spread,
+          y: c.y + gauss() * c.spread,
+          vx: (Math.random() - 0.5) * 0.18,
+          vy: (Math.random() - 0.5) * 0.18,
+          r: 0.8 + Math.random() * 1.2,
+          hub: Math.random() < 0.045,
+          cluster: ci,
         };
       });
     }
@@ -61,27 +76,26 @@ export function HeroNetwork() {
       for (const p of particles) {
         p.x += p.vx;
         p.y += p.vy;
-        if (p.x < -10) p.x = width + 10;
-        if (p.x > width + 10) p.x = -10;
-        if (p.y < -10) p.y = height + 10;
-        if (p.y > height + 10) p.y = -10;
+        if (p.x < -20) p.x = width + 20;
+        if (p.x > width + 20) p.x = -20;
+        if (p.y < -20) p.y = height + 20;
+        if (p.y > height + 20) p.y = -20;
       }
 
-      // 연결선
+      // 라인: 전부 블루, 가까울수록 진하게
+      ctx!.lineWidth = 0.7;
       for (let i = 0; i < particles.length; i += 1) {
         const a = particles[i]!;
         for (let j = i + 1; j < particles.length; j += 1) {
           const b = particles[j]!;
           const dx = a.x - b.x;
+          if (dx > LINK_DIST || dx < -LINK_DIST) continue;
           const dy = a.y - b.y;
+          if (dy > LINK_DIST || dy < -LINK_DIST) continue;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist > LINK_DIST) continue;
-          const alpha = (1 - dist / LINK_DIST) * 0.6;
-          ctx!.strokeStyle =
-            a.blue || b.blue
-              ? `rgba(96, 152, 255, ${alpha})`
-              : `rgba(255, 255, 255, ${alpha * 0.65})`;
-          ctx!.lineWidth = 0.8;
+          const alpha = (1 - dist / LINK_DIST) * 0.55;
+          ctx!.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
           ctx!.beginPath();
           ctx!.moveTo(a.x, a.y);
           ctx!.lineTo(b.x, b.y);
@@ -89,17 +103,26 @@ export function HeroNetwork() {
         }
       }
 
-      // 노드
+      // 도트: 블루 소형 + 허브(화이트 코어 + 블루 글로우 헤일로)
       for (const p of particles) {
-        ctx!.beginPath();
-        ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx!.fillStyle = p.blue ? 'rgba(109, 163, 255, 0.95)' : 'rgba(255, 255, 255, 0.75)';
-        ctx!.fill();
-        if (p.blue && p.r > 1.4) {
-          // 큰 블루 노드에 글로우
+        if (p.hub) {
+          const glow = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
+          glow.addColorStop(0, 'rgba(147, 197, 253, 0.85)');
+          glow.addColorStop(0.25, 'rgba(59, 130, 246, 0.35)');
+          glow.addColorStop(1, 'rgba(59, 130, 246, 0)');
+          ctx!.fillStyle = glow;
           ctx!.beginPath();
-          ctx!.arc(p.x, p.y, p.r * 3.2, 0, Math.PI * 2);
-          ctx!.fillStyle = 'rgba(77, 141, 255, 0.10)';
+          ctx!.arc(p.x, p.y, 16, 0, Math.PI * 2);
+          ctx!.fill();
+
+          ctx!.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx!.beginPath();
+          ctx!.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+          ctx!.fill();
+        } else {
+          ctx!.fillStyle = 'rgba(96, 165, 250, 0.8)';
+          ctx!.beginPath();
+          ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2);
           ctx!.fill();
         }
       }
@@ -121,7 +144,7 @@ export function HeroNetwork() {
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full [mask-image:linear-gradient(to_right,rgba(0,0,0,0.25)_0%,rgba(0,0,0,0.6)_28%,black_55%)]"
+      className="pointer-events-none absolute inset-0 h-full w-full [mask-image:linear-gradient(to_right,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.55)_30%,black_55%)]"
     />
   );
 }
