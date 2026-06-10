@@ -23,6 +23,7 @@ export const BlockTypes = {
   CODE: 'code',
   COST_TABLE: 'cost_table',
   CONSTRUCTION_DETAIL: 'construction_detail',
+  CONTAINER: 'container',
 } as const;
 
 export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
@@ -185,6 +186,12 @@ export const constructionDetailContentSchema = z.object({
   notes: z.string().optional(),
 });
 
+/** 컨테이너 블록: 자식 블록들을 묶는 그룹. 자식은 DocumentBlock.parentId로 연결된다. */
+export const containerContentSchema = z.object({
+  title: z.string().default(''),
+  collapsed: z.boolean().optional(),
+});
+
 export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   heading: headingContentSchema,
   paragraph: paragraphContentSchema,
@@ -203,6 +210,7 @@ export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   code: codeContentSchema,
   cost_table: costTableContentSchema,
   construction_detail: constructionDetailContentSchema,
+  container: containerContentSchema,
 };
 
 export const blockTypeSchema = z.enum([
@@ -223,6 +231,7 @@ export const blockTypeSchema = z.enum([
   'code',
   'cost_table',
   'construction_detail',
+  'container',
 ]);
 
 export const blockInputSchema = z
@@ -263,6 +272,7 @@ export type QuoteContent = z.infer<typeof quoteContentSchema>;
 export type CodeContent = z.infer<typeof codeContentSchema>;
 export type CostTableContent = z.infer<typeof costTableContentSchema>;
 export type ConstructionDetailContent = z.infer<typeof constructionDetailContentSchema>;
+export type ContainerContent = z.infer<typeof containerContentSchema>;
 
 /** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
 export function parseBlockContent(type: string, content: unknown) {

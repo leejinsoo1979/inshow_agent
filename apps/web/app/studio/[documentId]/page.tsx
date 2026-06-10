@@ -29,6 +29,7 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   code: '코드',
   cost_table: '견적표',
   construction_detail: '시공상세',
+  container: '컨테이너',
 };
 
 export default function DocumentStudioPage({

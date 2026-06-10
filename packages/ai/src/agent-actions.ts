@@ -43,11 +43,24 @@ export const appendToBlockActionSchema = z.object({
   risk_level: riskLevelSchema.default('low'),
 });
 
+/** 컨테이너(그룹) 블록 + 자식 블록들을 한 번에 생성 (스펙: create_container) */
+export const createContainerActionSchema = z.object({
+  action_type: z.literal('create_container'),
+  target: z.object({ documentId: z.string(), afterBlockId: z.string().optional() }),
+  payload: z.object({
+    title: z.string(),
+    children: z.array(blockInputSchema).default([]),
+  }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('low'),
+});
+
 export const agentActionSchema = z.discriminatedUnion('action_type', [
   insertBlocksActionSchema,
   updateBlockActionSchema,
   replaceBlockContentActionSchema,
   appendToBlockActionSchema,
+  createContainerActionSchema,
 ]);
 
 export type AgentActionInput = z.infer<typeof agentActionSchema>;
@@ -55,6 +68,7 @@ export type InsertBlocksAction = z.infer<typeof insertBlocksActionSchema>;
 export type UpdateBlockAction = z.infer<typeof updateBlockActionSchema>;
 export type ReplaceBlockContentAction = z.infer<typeof replaceBlockContentActionSchema>;
 export type AppendToBlockAction = z.infer<typeof appendToBlockActionSchema>;
+export type CreateContainerAction = z.infer<typeof createContainerActionSchema>;
 
 /** 실행 가능한 action type allowlist */
 export const ALLOWED_ACTION_TYPES = [
@@ -62,6 +76,7 @@ export const ALLOWED_ACTION_TYPES = [
   'update_block',
   'replace_block_content',
   'append_to_block',
+  'create_container',
 ] as const;
 
 export function parseAgentAction(value: unknown): AgentActionInput {

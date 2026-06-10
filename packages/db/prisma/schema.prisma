@@ -102,6 +102,7 @@ enum DocumentStatus {
 model DocumentBlock {
   id         String   @id @default(cuid())
   documentId String
+  parentId   String?
   type       String
   sortOrder  Int
   content    Json
@@ -109,9 +110,12 @@ model DocumentBlock {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parent     DocumentBlock?  @relation("BlockChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children   DocumentBlock[] @relation("BlockChildren")
   citations  Citation[]
 
   @@index([documentId, sortOrder])
+  @@index([parentId])
 }
 
 model Citation {

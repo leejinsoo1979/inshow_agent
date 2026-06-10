@@ -21,6 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
   code: '코드',
   cost_table: '견적표',
   construction_detail: '시공상세',
+  container: '컨테이너',
 };
 
 function blockSummary(block: EditorBlock): string {
@@ -36,7 +37,61 @@ type Props = {
   onDeleteBlock: (id: string) => void;
 };
 
-/** 우측 문서 블록 패널 (블록 목록 + 선택/삭제 + 하단 블록 추가 버튼) */
+function OutlineRow({
+  block,
+  depth,
+  selectedBlockId,
+  onSelectBlock,
+  onDeleteBlock,
+}: {
+  block: EditorBlock;
+  depth: number;
+  selectedBlockId: string | null;
+  onSelectBlock: (id: string) => void;
+  onDeleteBlock: (id: string) => void;
+}) {
+  const selected = selectedBlockId === block.id;
+  const isContainer = block.type === 'container';
+  return (
+    <li className="group relative" style={{ paddingLeft: depth * 12 }}>
+      <button
+        onClick={() => onSelectBlock(block.id)}
+        className={`w-full rounded-lg border px-2.5 py-2 pr-7 text-left text-xs transition ${
+          selected
+            ? 'border-zinc-900 bg-zinc-900 text-white'
+            : isContainer
+              ? 'border-dashed border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400'
+              : 'border-zinc-100 bg-zinc-50 text-zinc-600 hover:border-zinc-300'
+        }`}
+      >
+        <span
+          className={`mb-0.5 block text-[10px] font-semibold ${
+            selected ? 'text-zinc-300' : 'text-zinc-400'
+          }`}
+        >
+          {depth > 0 && '└ '}
+          {isContainer && '📦 '}
+          {TYPE_LABELS[block.type] ?? block.type}
+        </span>
+        <span className="block truncate">{blockSummary(block)}</span>
+      </button>
+      <button
+        onClick={() => onDeleteBlock(block.id)}
+        title="블록 삭제"
+        aria-label="블록 삭제"
+        className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded transition ${
+          selected
+            ? 'text-zinc-400 hover:bg-white/15 hover:text-white'
+            : 'text-zinc-300 opacity-0 hover:bg-zinc-200 hover:text-red-600 group-hover:opacity-100'
+        }`}
+      >
+        <FiTrash2 size={12} aria-hidden />
+      </button>
+    </li>
+  );
+}
+
+/** 우측 문서 블록 패널 — container 자식을 들여쓴 트리로 표시 + 선택/삭제 + 블록 추가 */
 export function BlockOutline({
   blocks,
   selectedBlockId,
@@ -44,52 +99,48 @@ export function BlockOutline({
   onAddBlock,
   onDeleteBlock,
 }: Props) {
+  // parentId 기준으로 트리 구성: 최상위 블록 sortOrder 순 + 각 컨테이너의 자식
+  const childrenByParent = new Map<string, EditorBlock[]>();
+  for (const b of blocks) {
+    if (b.parentId) {
+      const list = childrenByParent.get(b.parentId) ?? [];
+      list.push(b);
+      childrenByParent.set(b.parentId, list);
+    }
+  }
+  const topLevel = blocks
+    .filter((b) => !b.parentId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const rows: { block: EditorBlock; depth: number }[] = [];
+  for (const block of topLevel) {
+    rows.push({ block, depth: 0 });
+    const children = (childrenByParent.get(block.id) ?? []).sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+    for (const child of children) rows.push({ block: child, depth: 1 });
+  }
+
   return (
     <aside className="flex w-56 shrink-0 flex-col border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-4 py-3">
-        <h2 className="text-xs font-bold text-zinc-700">문서 블록</h2>
+        <h2 className="text-xs font-bold text-zinc-700">문서 구조</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {blocks.length === 0 ? (
           <p className="px-2 py-4 text-xs text-zinc-400">블록이 없습니다.</p>
         ) : (
           <ul className="space-y-1">
-            {blocks.map((block, i) => {
-              const selected = selectedBlockId === block.id;
-              return (
-                <li key={block.id} className="group relative">
-                  <button
-                    onClick={() => onSelectBlock(block.id)}
-                    className={`w-full rounded-lg border px-2.5 py-2 pr-7 text-left text-xs transition ${
-                      selected
-                        ? 'border-zinc-900 bg-zinc-900 text-white'
-                        : 'border-zinc-100 bg-zinc-50 text-zinc-600 hover:border-zinc-300'
-                    }`}
-                  >
-                    <span
-                      className={`mb-0.5 block text-[10px] font-semibold ${
-                        selected ? 'text-zinc-300' : 'text-zinc-400'
-                      }`}
-                    >
-                      {i + 1} · {TYPE_LABELS[block.type] ?? block.type}
-                    </span>
-                    <span className="block truncate">{blockSummary(block)}</span>
-                  </button>
-                  <button
-                    onClick={() => onDeleteBlock(block.id)}
-                    title="블록 삭제"
-                    aria-label="블록 삭제"
-                    className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded transition ${
-                      selected
-                        ? 'text-zinc-400 hover:bg-white/15 hover:text-white'
-                        : 'text-zinc-300 opacity-0 hover:bg-zinc-200 hover:text-red-600 group-hover:opacity-100'
-                    }`}
-                  >
-                    <FiTrash2 size={12} aria-hidden />
-                  </button>
-                </li>
-              );
-            })}
+            {rows.map(({ block, depth }) => (
+              <OutlineRow
+                key={block.id}
+                block={block}
+                depth={depth}
+                selectedBlockId={selectedBlockId}
+                onSelectBlock={onSelectBlock}
+                onDeleteBlock={onDeleteBlock}
+              />
+            ))}
           </ul>
         )}
       </div>

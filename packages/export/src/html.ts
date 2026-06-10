@@ -194,6 +194,10 @@ export class HtmlExporter implements Exporter {
           parts.push(`<div class="construction-detail">${head}${media}${steps}${notes}</div>`);
           break;
         }
+        case 'container': {
+          if (c.title) parts.push(`<h3 class="container-title">${esc(c.title)}</h3>`);
+          break;
+        }
         default:
           break;
       }
@@ -244,6 +248,7 @@ export class HtmlExporter implements Exporter {
   .cost-note { color: #71717a; font-size: 0.85rem; }
   .detail-placeholder { color: #71717a; font-style: italic; }
   .detail-notes { color: #b45309; }
+  .container-title { border-top: 2px solid #18181b; padding-top: 10px; margin-top: 24px; font-weight: 700; }
 </style>
 </head>
 <body>

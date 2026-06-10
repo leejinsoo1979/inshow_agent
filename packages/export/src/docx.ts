@@ -352,6 +352,17 @@ export class DocxExporter implements Exporter {
           children.push(new Paragraph({ children: [] }));
           break;
         }
+        case 'container': {
+          if (c.title) {
+            children.push(
+              new Paragraph({
+                heading: HeadingLevel.HEADING_2,
+                children: [new TextRun(String(c.title))],
+              }),
+            );
+          }
+          break;
+        }
         default:
           break;
       }

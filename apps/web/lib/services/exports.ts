@@ -52,6 +52,7 @@ export async function createExport(userId: string, input: z.infer<typeof createE
         type: b.type,
         sortOrder: b.sortOrder,
         content: b.content as Record<string, unknown>,
+        parentId: b.parentId,
       })),
     };
     const fontBytes = input.format === 'pdf' ? await loadKoreanFontBytes() : undefined;

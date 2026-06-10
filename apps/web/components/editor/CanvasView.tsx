@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
   code: '코드',
   cost_table: '견적표',
   construction_detail: '시공상세',
+  container: '컨테이너',
 };
 
 /** 캔버스 좌표가 아직 없는 블록을 세로로 쌓는 기본 높이(타입별) */
@@ -56,6 +57,7 @@ const DEFAULT_H: Record<string, number> = {
   code: 180,
   cost_table: 240,
   construction_detail: 280,
+  container: 80,
 };
 
 /** 8방향 리사이즈 핸들 정의: 위치/커서 */

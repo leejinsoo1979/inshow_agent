@@ -6,6 +6,7 @@ import type {
   ChecklistContent,
   CodeContent,
   ConstructionDetailContent,
+  ContainerContent,
   CostTableContent,
   CtaContent,
   DocMetaContent,
@@ -325,6 +326,20 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
             spellCheck={false}
             onChange={(e) => onChange({ ...c, code: e.target.value })}
             className="rounded-md bg-zinc-900 px-3 py-2 font-mono text-sm text-zinc-100 outline-none"
+          />
+        </div>
+      );
+    }
+    case 'container': {
+      const c = content as unknown as ContainerContent;
+      return (
+        <div className="flex items-center gap-2 rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 px-3 py-2">
+          <span className="text-xs font-bold text-zinc-400">📦 컨테이너</span>
+          <input
+            value={c.title ?? ''}
+            placeholder="컨테이너 제목 (예: 단열두께 설계 기준)"
+            onChange={(e) => onChange({ ...c, title: e.target.value })}
+            className="flex-1 bg-transparent font-bold outline-none"
           />
         </div>
       );

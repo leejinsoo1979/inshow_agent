@@ -5,7 +5,32 @@ export type ExportBlock = {
   type: string;
   sortOrder: number;
   content: Record<string, unknown>;
+  parentId?: string | null;
 };
+
+/**
+ * 블록을 트리로 묶는다. parentId가 없는(null/undefined) 최상위 블록을 sortOrder 순으로 반환하며,
+ * 각 블록의 직접 자식(parentId === block.id)을 sortOrder 순으로 함께 담는다.
+ */
+export function buildBlockTree(
+  blocks: ExportBlock[],
+): { block: ExportBlock; children: ExportBlock[] }[] {
+  const childrenByParent = new Map<string, ExportBlock[]>();
+  for (const block of blocks) {
+    if (block.parentId != null) {
+      const list = childrenByParent.get(block.parentId) ?? [];
+      list.push(block);
+      childrenByParent.set(block.parentId, list);
+    }
+  }
+  const topLevel = blocks
+    .filter((b) => b.parentId == null)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return topLevel.map((block) => ({
+    block,
+    children: (childrenByParent.get(block.id) ?? []).sort((a, b) => a.sortOrder - b.sortOrder),
+  }));
+}
 
 export type DocumentForExport = {
   id: string;

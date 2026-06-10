@@ -106,6 +106,45 @@ describe('replace_block_content / append_to_block 액션', () => {
   });
 });
 
+describe('create_container 액션', () => {
+  it('컨테이너와 자식 블록을 parentId로 연결해 생성한다', async () => {
+    const { user, doc } = await setupDocument();
+    const action = await prisma.agentAction.create({
+      data: {
+        documentId: doc.id,
+        type: 'create_container',
+        payload: {
+          action_type: 'create_container',
+          target: { documentId: doc.id },
+          payload: {
+            title: '단열두께 설계 기준',
+            children: [
+              { type: 'paragraph', content: { text: '개요' } },
+              { type: 'formula', content: { expression: 'U = 1 / Rtotal', variables: [] } },
+            ],
+          },
+          requires_approval: true,
+          risk_level: 'low',
+        },
+        riskLevel: 'low',
+        requiresApproval: true,
+      },
+    });
+    await approveAction(user.id, action.id);
+
+    const blocks = await prisma.documentBlock.findMany({
+      where: { documentId: doc.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const container = blocks.find((b) => b.type === 'container');
+    expect(container).toBeTruthy();
+    expect((container!.content as { title: string }).title).toBe('단열두께 설계 기준');
+    const children = blocks.filter((b) => b.parentId === container!.id);
+    expect(children).toHaveLength(2);
+    expect(children.map((c) => c.type)).toEqual(['paragraph', 'formula']);
+  });
+});
+
 describe('AI chat → action 승인 플로우', () => {
   it('블로그 초안 요청 시 insert_blocks 액션이 제안되고, 승인 시 블록이 삽입된다', async () => {
     const { user, doc } = await setupDocument();

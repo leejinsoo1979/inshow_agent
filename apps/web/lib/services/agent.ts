@@ -348,6 +348,7 @@ async function planWithLlm(
     '- {"type":"code","content":{"language":"ts","code":"const a = 1"}}',
     '- {"type":"cost_table","content":{"title":"견적","currency":"원","items":[{"name":"항목","spec":"규격","quantity":1,"unit":"식","unitPrice":100000}]}}',
     '- {"type":"construction_detail","content":{"title":"상세","imagePrompt":"상세도 묘사","steps":["1단계","2단계"],"notes":"주의사항"}}',
+    '- {"type":"container","content":{"title":"섹션 제목"}} (관련 블록을 묶는 그룹 머리)',
     '- {"type":"image","content":{"prompt":"생성할 이미지 묘사","caption":"캡션"}}',
     '법규/공법 답변에는 반드시 law_reference 또는 source_reference 블록으로 근거를 포함해라.',
     '이미지가 필요하면 image 블록을 넣어라(prompt만 주면 실제 이미지가 자동 생성된다).',
@@ -578,6 +579,25 @@ async function executeAction(userId: string, action: AgentActionInput) {
       };
       const updated = await updateBlock(userId, action.target.blockId, { content: nextContent });
       return { updatedBlockId: updated.id, warnings };
+    }
+    case 'create_container': {
+      // 컨테이너 블록 생성 후 자식 블록들을 parentId로 연결하고 컨테이너 바로 뒤에 배치
+      const container = await addBlock(userId, action.target.documentId, {
+        afterBlockId: action.target.afterBlockId,
+        block: { type: 'container', content: { title: action.payload.title } },
+      });
+      const childBlockIds: string[] = [];
+      let after = container.id;
+      for (const child of action.payload.children) {
+        const created = await addBlock(userId, action.target.documentId, {
+          afterBlockId: after,
+          parentId: container.id,
+          block: child,
+        });
+        childBlockIds.push(created.id);
+        after = created.id;
+      }
+      return { containerId: container.id, childBlockIds, warnings };
     }
   }
 }

@@ -20,6 +20,7 @@ export class JsonExporter implements Exporter {
           id: b.id,
           type: b.type,
           sortOrder: b.sortOrder,
+          parentId: b.parentId ?? null,
           content: b.content,
         })),
     };

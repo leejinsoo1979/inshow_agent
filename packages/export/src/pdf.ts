@@ -250,6 +250,12 @@ export class PdfExporter implements Exporter {
           writer.gap(4);
           break;
         }
+        case 'container': {
+          if (c.title) {
+            writer.writeText(String(c.title), { size: 14, gapBefore: 10, gapAfter: 6 });
+          }
+          break;
+        }
         default:
           break;
       }

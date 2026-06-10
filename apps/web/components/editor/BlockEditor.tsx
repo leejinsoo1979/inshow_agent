@@ -14,6 +14,7 @@ export type EditorBlock = {
   id: string;
   type: string;
   sortOrder: number;
+  parentId?: string | null;
   content: Record<string, unknown>;
   metadata?: { canvas?: CanvasLayout | null } & Record<string, unknown>;
 };
@@ -78,6 +79,7 @@ const NEW_BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
     steps: [''],
     notes: '',
   },
+  [BlockTypes.CONTAINER]: { title: '새 컨테이너', collapsed: false },
 };
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -98,6 +100,7 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   code: '코드',
   cost_table: '견적표',
   construction_detail: '시공상세',
+  container: '컨테이너',
 };
 
 type Props = {

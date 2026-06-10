@@ -167,6 +167,10 @@ export class TxtExporter implements Exporter {
           lines.push('');
           break;
         }
+        case 'container': {
+          if (c.title) lines.push('', `【 ${c.title} 】`, '');
+          break;
+        }
         default:
           break;
       }

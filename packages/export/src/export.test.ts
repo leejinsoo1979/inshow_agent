@@ -159,6 +159,30 @@ describe('전문 블록 타입 내보내기', () => {
   });
 });
 
+describe('container 계층 내보내기', () => {
+  const containerDoc: DocumentForExport = {
+    id: 'doc_c',
+    title: '계층 문서',
+    blocks: [
+      { id: 'cont', type: 'container', sortOrder: 0, content: { title: '단열 설계 기준' } },
+      { id: 'ch1', type: 'paragraph', sortOrder: 1, parentId: 'cont', content: { text: '자식 문단' } },
+    ],
+  };
+
+  it('Markdown: 컨테이너 제목을 섹션 헤더로, 자식을 이어서 출력한다', async () => {
+    const md = new TextDecoder().decode((await new MarkdownExporter().export(containerDoc)).data);
+    expect(md).toContain('단열 설계 기준');
+    expect(md).toContain('자식 문단');
+    expect(md.indexOf('단열 설계 기준')).toBeLessThan(md.indexOf('자식 문단'));
+  });
+
+  it('JSON: parentId로 계층이 보존된다', async () => {
+    const parsed = JSON.parse(new TextDecoder().decode((await new JsonExporter().export(containerDoc)).data));
+    const child = parsed.blocks.find((b: { id: string }) => b.id === 'ch1');
+    expect(child.parentId).toBe('cont');
+  });
+});
+
 describe('JsonExporter', () => {
   it('블록 순서를 보존한 구조화 JSON을 생성한다', async () => {
     const result = await new JsonExporter().export(sampleDocument);

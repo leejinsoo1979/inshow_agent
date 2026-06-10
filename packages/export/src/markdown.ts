@@ -177,6 +177,10 @@ export class MarkdownExporter implements Exporter {
           if (detail.notes) lines.push(`주의: ${detail.notes}`, '');
           break;
         }
+        case 'container': {
+          if (c.title) lines.push(`## ${c.title}`, '');
+          break;
+        }
         default:
           break;
       }

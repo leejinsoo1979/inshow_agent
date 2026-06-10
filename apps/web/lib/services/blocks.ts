@@ -7,6 +7,8 @@ import { writeAuditLog } from '../audit';
 
 export const addBlockSchema = z.object({
   afterBlockId: z.string().optional(),
+  /** 컨테이너 블록의 자식으로 추가할 때 부모 블록 id */
+  parentId: z.string().optional(),
   block: blockInputSchema,
 });
 
@@ -70,6 +72,7 @@ export async function addBlock(
     return tx.documentBlock.create({
       data: {
         documentId,
+        parentId: input.parentId ?? null,
         type: input.block.type,
         sortOrder,
         content: input.block.content as Prisma.InputJsonValue,
