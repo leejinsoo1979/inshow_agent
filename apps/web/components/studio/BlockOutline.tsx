@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { apiFetch } from '@/lib/client/api';
 import type { EditorBlock } from '@/components/editor/BlockEditor';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -17,17 +19,59 @@ function blockSummary(block: EditorBlock): string {
 }
 
 type Props = {
+  documentId: string;
   blocks: EditorBlock[];
   selectedBlockId: string | null;
   onSelectBlock: (id: string) => void;
 };
 
-/** 우측 문서 블록 목록 사이드바 */
-export function BlockOutline({ blocks, selectedBlockId, onSelectBlock }: Props) {
+const EXPORT_FORMATS = [
+  { format: 'txt', label: 'TXT' },
+  { format: 'markdown', label: 'Markdown' },
+  { format: 'pdf', label: 'PDF' },
+] as const;
+
+/** 우측 문서 블록 목록 + 내보내기 사이드바 */
+export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBlock }: Props) {
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  async function handleExport(format: 'txt' | 'markdown' | 'pdf') {
+    setExporting(format);
+    setExportError(null);
+    try {
+      const result = await apiFetch<{ jobId: string; downloadUrl: string }>('/api/exports', {
+        method: 'POST',
+        body: JSON.stringify({ documentId, format }),
+      });
+      window.open(result.downloadUrl, '_blank');
+    } catch (e) {
+      setExportError((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <aside className="flex w-60 flex-col border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-700">문서 블록</h2>
+      </div>
+      <div className="border-b border-zinc-200 p-3">
+        <p className="mb-2 text-xs font-semibold text-zinc-500">내보내기</p>
+        <div className="flex gap-1.5">
+          {EXPORT_FORMATS.map(({ format, label }) => (
+            <button
+              key={format}
+              onClick={() => handleExport(format)}
+              disabled={exporting !== null}
+              className="flex-1 rounded-md bg-violet-600 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              {exporting === format ? '...' : label}
+            </button>
+          ))}
+        </div>
+        {exportError && <p className="mt-2 text-xs text-red-600">{exportError}</p>}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {blocks.length === 0 ? (

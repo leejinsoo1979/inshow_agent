@@ -78,6 +78,7 @@ model Document {
   project      Project        @relation(fields: [projectId], references: [id])
   blocks       DocumentBlock[]
   chatSessions ChatSession[]
+  exports      ExportJob[]
 }
 
 enum DocumentType {
@@ -159,6 +160,37 @@ enum AgentActionStatus {
   APPROVED
   EXECUTED
   REJECTED
+  FAILED
+}
+
+model ExportJob {
+  id          String       @id @default(cuid())
+  documentId  String
+  format      ExportFormat
+  status      ExportStatus @default(QUEUED)
+  fileKey     String?
+  filename    String?
+  mimeType    String?
+  error       String?
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+  document    Document     @relation(fields: [documentId], references: [id])
+
+  @@index([documentId, status])
+}
+
+enum ExportFormat {
+  TXT
+  MARKDOWN
+  PDF
+  DOCX
+  HTML
+}
+
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  DONE
   FAILED
 }
 

@@ -1,0 +1,66 @@
+import {
+  checklistItems,
+  collectSources,
+  safeFilename,
+  type DocumentForExport,
+  type Exporter,
+  type ExportResult,
+} from './types';
+
+export class MarkdownExporter implements Exporter {
+  readonly format = 'markdown' as const;
+
+  async export(document: DocumentForExport): Promise<ExportResult> {
+    const { sources } = collectSources(document.blocks);
+    const lines: string[] = [`# ${document.title}`, ''];
+
+    for (const block of document.blocks) {
+      const c = block.content as Record<string, string | number | undefined>;
+      switch (block.type) {
+        case 'heading': {
+          const level = Math.min(Number(c.level ?? 2) + 1, 6);
+          lines.push(`${'#'.repeat(level)} ${c.text ?? ''}`, '');
+          break;
+        }
+        case 'paragraph':
+          lines.push(String(c.text ?? ''), '');
+          break;
+        case 'image':
+          lines.push(`![${c.caption ?? '이미지'}](${c.url ?? ''})`, '');
+          if (c.caption) lines.push(`*${c.caption}*`, '');
+          break;
+        case 'checklist': {
+          if (c.title) lines.push(`**${c.title}**`, '');
+          for (const item of checklistItems(block.content)) {
+            lines.push(`- [${item.checked ? 'x' : ' '}] ${item.text}`);
+          }
+          lines.push('');
+          break;
+        }
+        case 'source_reference':
+          break;
+        case 'cta': {
+          const label = c.buttonLabel ? `**[${c.buttonLabel}](${c.url ?? '#'})**` : '';
+          lines.push(`> ${c.text ?? ''}`, '>', `> ${label}`.trimEnd(), '');
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    if (sources.length > 0) {
+      lines.push('## 출처', '');
+      sources.forEach((s, i) => {
+        lines.push(`${i + 1}. **${s.title ?? '제목 없음'}**${s.summary ? ` — ${s.summary}` : ''}`);
+      });
+      lines.push('');
+    }
+
+    return {
+      filename: safeFilename(document.title, 'md'),
+      mimeType: 'text/markdown; charset=utf-8',
+      data: new TextEncoder().encode(lines.join('\n')),
+    };
+  }
+}

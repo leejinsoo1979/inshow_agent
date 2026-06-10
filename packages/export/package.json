@@ -6,6 +6,8 @@
   "types": "./src/index.ts",
   "dependencies": {
     "@archi/editor": "*",
-    "@archi/shared": "*"
+    "@archi/shared": "*",
+    "@pdf-lib/fontkit": "^1.1.1",
+    "pdf-lib": "^1.17.1"
   }
 }

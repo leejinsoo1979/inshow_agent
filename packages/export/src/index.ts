@@ -1,2 +1,20 @@
-// Exporter 구현은 Prompt 4(Export Engine)에서 추가된다.
-export const EXPORT_PACKAGE_READY = true;
+export * from './types';
+export * from './txt';
+export * from './markdown';
+export * from './pdf';
+
+import type { Exporter, ExportFormat } from './types';
+import { TxtExporter } from './txt';
+import { MarkdownExporter } from './markdown';
+import { PdfExporter } from './pdf';
+
+export function getExporter(format: ExportFormat): Exporter {
+  switch (format) {
+    case 'txt':
+      return new TxtExporter();
+    case 'markdown':
+      return new MarkdownExporter();
+    case 'pdf':
+      return new PdfExporter();
+  }
+}

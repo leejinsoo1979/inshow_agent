@@ -46,6 +46,7 @@ export default function DocumentStudioPage({
 
       {/* 우측 블록 목록 */}
       <BlockOutline
+        documentId={documentId}
         blocks={blocks}
         selectedBlockId={selectedBlockId}
         onSelectBlock={setSelectedBlockId}
