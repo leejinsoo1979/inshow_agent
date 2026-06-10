@@ -11,6 +11,7 @@ const TYPE_LABELS: Record<string, string> = {
   checklist: '체크리스트',
   source_reference: '출처',
   cta: 'CTA',
+  chart: '차트',
 };
 
 function blockSummary(block: EditorBlock): string {

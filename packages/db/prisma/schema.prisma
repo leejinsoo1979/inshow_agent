@@ -410,6 +410,20 @@ model TaskEvent {
   @@index([taskId, createdAt])
 }
 
+model LlmProviderConfig {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  provider        String // anthropic | openai | custom
+  model           String?
+  baseUrl         String?
+  encryptedApiKey String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([workspaceId, isActive])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?

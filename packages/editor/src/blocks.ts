@@ -12,6 +12,7 @@ export const BlockTypes = {
   CHECKLIST: 'checklist',
   SOURCE_REFERENCE: 'source_reference',
   CTA: 'cta',
+  CHART: 'chart',
 } as const;
 
 export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
@@ -56,6 +57,21 @@ export const ctaContentSchema = z.object({
   url: z.string().optional(),
 });
 
+/** 차트/그래프 블록: 데이터는 블록에 내장, 렌더링은 SVG (모노톤) */
+export const chartContentSchema = z.object({
+  chartType: z.enum(['bar', 'line', 'pie']),
+  title: z.string().optional(),
+  labels: z.array(z.string()).min(1, '라벨이 최소 1개 필요합니다.'),
+  series: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        values: z.array(z.number()).min(1),
+      }),
+    )
+    .min(1, '데이터 시리즈가 최소 1개 필요합니다.'),
+});
+
 export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   heading: headingContentSchema,
   paragraph: paragraphContentSchema,
@@ -63,6 +79,7 @@ export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   checklist: checklistContentSchema,
   source_reference: sourceReferenceContentSchema,
   cta: ctaContentSchema,
+  chart: chartContentSchema,
 };
 
 export const blockTypeSchema = z.enum([
@@ -72,6 +89,7 @@ export const blockTypeSchema = z.enum([
   'checklist',
   'source_reference',
   'cta',
+  'chart',
 ]);
 
 export const blockInputSchema = z
@@ -101,6 +119,7 @@ export type ImageContent = z.infer<typeof imageContentSchema>;
 export type ChecklistContent = z.infer<typeof checklistContentSchema>;
 export type SourceReferenceContent = z.infer<typeof sourceReferenceContentSchema>;
 export type CtaContent = z.infer<typeof ctaContentSchema>;
+export type ChartContent = z.infer<typeof chartContentSchema>;
 
 /** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
 export function parseBlockContent(type: string, content: unknown) {

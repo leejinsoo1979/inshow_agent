@@ -1,5 +1,7 @@
 import { safeUrlOrEmpty } from '@archi/security';
 import {
+  CHART_TYPE_LABELS,
+  chartData,
   checklistItems,
   collectSources,
   safeFilename,
@@ -40,6 +42,25 @@ export class MarkdownExporter implements Exporter {
         }
         case 'source_reference':
           break;
+        case 'chart': {
+          const chart = chartData(block.content);
+          if (!chart) break;
+          if (chart.title) {
+            lines.push(
+              `**${chart.title}** (${CHART_TYPE_LABELS[chart.chartType] ?? chart.chartType} 차트)`,
+              '',
+            );
+          }
+          const headers = ['항목', ...chart.series.map((s, i) => s.name || `시리즈 ${i + 1}`)];
+          lines.push(`| ${headers.join(' | ')} |`);
+          lines.push(`| ${headers.map(() => '---').join(' | ')} |`);
+          chart.labels.forEach((label, i) => {
+            const cells = [label, ...chart.series.map((s) => String(s.values[i] ?? 0))];
+            lines.push(`| ${cells.join(' | ')} |`);
+          });
+          lines.push('');
+          break;
+        }
         case 'cta': {
           const ctaUrl = safeUrlOrEmpty(String(c.url ?? '')) || '#';
           const label = c.buttonLabel ? `**[${c.buttonLabel}](${ctaUrl})**` : '';

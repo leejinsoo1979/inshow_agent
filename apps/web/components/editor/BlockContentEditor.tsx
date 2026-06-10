@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  ChartContent,
   ChecklistContent,
   CtaContent,
   HeadingContent,
@@ -8,6 +9,7 @@ import type {
   ParagraphContent,
   SourceReferenceContent,
 } from '@archi/editor';
+import { ChartView } from './ChartView';
 
 type Props = {
   type: string;
@@ -184,7 +186,113 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
         </div>
       );
     }
+    case 'chart': {
+      const c = content as unknown as ChartContent;
+      return <ChartBlockEditor content={c} onChange={onChange} />;
+    }
     default:
       return <p className="text-sm text-red-500">지원하지 않는 블록 타입: {type}</p>;
   }
+}
+
+/** 차트 블록 편집: 차트 미리보기 + 데이터 입력 (라벨/시리즈 CSV) */
+function ChartBlockEditor({
+  content,
+  onChange,
+}: {
+  content: ChartContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const series = content.series ?? [];
+
+  function parseValues(raw: string): number[] {
+    return raw
+      .split(',')
+      .map((v) => Number(v.trim()))
+      .map((v) => (Number.isFinite(v) ? v : 0));
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ChartView content={content} />
+      <div className="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 text-sm">
+        <div className="flex items-center gap-2">
+          <select
+            value={content.chartType}
+            onChange={(e) => onChange({ ...content, chartType: e.target.value })}
+            className="rounded border border-zinc-200 px-2 py-1 text-xs"
+          >
+            <option value="bar">막대</option>
+            <option value="line">선</option>
+            <option value="pie">파이</option>
+          </select>
+          <input
+            value={content.title ?? ''}
+            placeholder="차트 제목"
+            onChange={(e) => onChange({ ...content, title: e.target.value })}
+            className="flex-1 rounded border border-zinc-200 px-2 py-1 text-xs"
+          />
+        </div>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          라벨 (쉼표 구분)
+          <input
+            value={(content.labels ?? []).join(', ')}
+            placeholder="예: 철거, 목공, 도장, 마감"
+            onChange={(e) =>
+              onChange({
+                ...content,
+                labels: e.target.value.split(',').map((label) => label.trim()).filter(Boolean),
+              })
+            }
+            className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-900"
+          />
+        </label>
+        {series.map((s, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={s.name ?? ''}
+              placeholder={`시리즈 ${i + 1}`}
+              onChange={(e) => {
+                const next = series.map((it, j) => (j === i ? { ...it, name: e.target.value } : it));
+                onChange({ ...content, series: next });
+              }}
+              className="w-24 rounded border border-zinc-200 px-2 py-1 text-xs"
+            />
+            <input
+              value={s.values.join(', ')}
+              placeholder="예: 120, 340, 200"
+              onChange={(e) => {
+                const next = series.map((it, j) =>
+                  j === i ? { ...it, values: parseValues(e.target.value) } : it,
+                );
+                onChange({ ...content, series: next });
+              }}
+              className="flex-1 rounded border border-zinc-200 px-2 py-1 text-xs"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ ...content, series: series.filter((_, j) => j !== i) })}
+              disabled={series.length <= 1}
+              className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-30"
+              aria-label="시리즈 삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              ...content,
+              series: [...series, { name: '', values: content.labels.map(() => 0) }],
+            })
+          }
+          className="self-start text-xs text-zinc-500 hover:text-zinc-900"
+        >
+          + 시리즈 추가
+        </button>
+      </div>
+    </div>
+  );
 }

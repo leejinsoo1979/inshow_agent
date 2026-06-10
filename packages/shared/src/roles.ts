@@ -20,6 +20,7 @@ export const Capabilities = {
   EDIT_ONTOLOGY: 'EDIT_ONTOLOGY',
   EXPORT_DOCUMENTS: 'EXPORT_DOCUMENTS',
   MANAGE_TASKS: 'MANAGE_TASKS',
+  MANAGE_LLM_PROVIDERS: 'MANAGE_LLM_PROVIDERS',
 } as const;
 
 export type Capability = (typeof Capabilities)[keyof typeof Capabilities];

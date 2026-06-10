@@ -26,6 +26,7 @@ export type AgentPlan = {
 
 const BLOG_KEYWORDS = ['블로그', '초안', '글 써', '글써', '작성해'];
 const EDIT_KEYWORDS = ['바꿔', '수정', '고쳐', '다듬어', '톤'];
+const CHART_KEYWORDS = ['차트', '그래프'];
 
 export function planAgentResponse(input: AgentPlanInput): AgentPlan {
   // 법규/공법 질문: citation 없는 확답 금지 (CLAUDE.md 규칙 4)
@@ -90,6 +91,39 @@ export function planAgentResponse(input: AgentPlanInput): AgentPlan {
           action_type: 'update_block',
           target: { documentId: input.documentId, blockId: input.selectedBlockId },
           payload: { content: { text: revised } },
+          requires_approval: true,
+          risk_level: 'low',
+        },
+      ],
+    };
+  }
+
+  // 차트/그래프 생성 요청
+  if (CHART_KEYWORDS.some((k) => input.message.includes(k))) {
+    return {
+      reply:
+        '공정별 비용 비율 예시 차트를 만들었습니다. 승인하시면 문서에 삽입되며, 삽입 후 데이터와 차트 유형을 직접 수정할 수 있습니다.',
+      actions: [
+        {
+          action_type: 'insert_blocks',
+          target: { documentId: input.documentId },
+          payload: {
+            blocks: [
+              {
+                type: 'chart',
+                content: {
+                  chartType: input.message.includes('파이') || input.message.includes('비율')
+                    ? 'pie'
+                    : input.message.includes('추이') || input.message.includes('선')
+                      ? 'line'
+                      : 'bar',
+                  title: '공정별 비용 비중 (예시)',
+                  labels: ['철거', '설비/배관', '목공', '도장/마감', '가구'],
+                  series: [{ name: '비용(만원)', values: [350, 620, 980, 540, 760] }],
+                },
+              },
+            ],
+          },
           requires_approval: true,
           risk_level: 'low',
         },

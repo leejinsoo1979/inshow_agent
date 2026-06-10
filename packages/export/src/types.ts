@@ -57,3 +57,30 @@ export function collectSources(blocks: ExportBlock[]): {
 export function checklistItems(content: Record<string, unknown>): ChecklistItem[] {
   return Array.isArray(content.items) ? (content.items as ChecklistItem[]) : [];
 }
+
+export type ChartData = {
+  chartType: string;
+  title?: string;
+  labels: string[];
+  series: { name?: string; values: number[] }[];
+};
+
+export function chartData(content: Record<string, unknown>): ChartData | null {
+  const labels = Array.isArray(content.labels) ? (content.labels as string[]) : [];
+  const series = Array.isArray(content.series)
+    ? (content.series as { name?: string; values: number[] }[])
+    : [];
+  if (labels.length === 0 || series.length === 0) return null;
+  return {
+    chartType: String(content.chartType ?? 'bar'),
+    title: typeof content.title === 'string' ? content.title : undefined,
+    labels,
+    series,
+  };
+}
+
+export const CHART_TYPE_LABELS: Record<string, string> = {
+  bar: '막대',
+  line: '선',
+  pie: '파이',
+};

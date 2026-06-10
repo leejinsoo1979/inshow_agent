@@ -7,6 +7,7 @@ import {
   FiFileText,
   FiHome,
   FiMessageSquare,
+  FiSettings,
   FiShare2,
   FiBookOpen,
 } from 'react-icons/fi';
@@ -18,6 +19,7 @@ const NAV_ITEMS: { icon: IconType; label: string; href: string }[] = [
   { icon: FiBookOpen, label: '지식베이스', href: '/studio/knowledge' },
   { icon: FiShare2, label: '온톨로지', href: '/studio/ontology' },
   { icon: FiMessageSquare, label: '메신저', href: '/studio/messenger' },
+  { icon: FiSettings, label: '설정', href: '/studio/settings' },
 ];
 
 /** 좌측 다크 네비게이션 레일 (참고 UI: docs/design/images/studio-screen.png) */

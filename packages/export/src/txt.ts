@@ -1,4 +1,6 @@
 import {
+  CHART_TYPE_LABELS,
+  chartData,
   checklistItems,
   collectSources,
   safeFilename,
@@ -37,6 +39,21 @@ export class TxtExporter implements Exporter {
         case 'source_reference':
           // 본문에서는 생략하고 문서 끝 출처 목록으로 변환
           break;
+        case 'chart': {
+          const chart = chartData(block.content);
+          if (!chart) break;
+          lines.push(
+            `[${CHART_TYPE_LABELS[chart.chartType] ?? chart.chartType} 차트${chart.title ? `: ${chart.title}` : ''}]`,
+          );
+          chart.labels.forEach((label, i) => {
+            const row = chart.series
+              .map((s) => `${s.name ? `${s.name} ` : ''}${s.values[i] ?? 0}`)
+              .join(' / ');
+            lines.push(`- ${label}: ${row}`);
+          });
+          lines.push('');
+          break;
+        }
         case 'cta':
           lines.push(`▶ ${c.text ?? ''}${c.url ? ` (${c.url})` : ''}`, '');
           break;

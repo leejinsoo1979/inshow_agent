@@ -1,6 +1,8 @@
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {
+  CHART_TYPE_LABELS,
+  chartData,
   checklistItems,
   collectSources,
   safeFilename,
@@ -65,6 +67,22 @@ export class PdfExporter implements Exporter {
         }
         case 'source_reference':
           break;
+        case 'chart': {
+          const chart = chartData(block.content);
+          if (!chart) break;
+          writer.writeText(
+            `[${CHART_TYPE_LABELS[chart.chartType] ?? chart.chartType} 차트${chart.title ? `: ${chart.title}` : ''}]`,
+            { size: 12, gapBefore: 6, gapAfter: 4 },
+          );
+          chart.labels.forEach((label, i) => {
+            const row = chart.series
+              .map((s) => `${s.name ? `${s.name} ` : ''}${s.values[i] ?? 0}`)
+              .join(' / ');
+            writer.writeText(`· ${label}: ${row}`, { gapAfter: 2 });
+          });
+          writer.gap(6);
+          break;
+        }
         case 'cta':
           writer.writeText(`▶ ${c.text ?? ''}${c.url ? ` (${c.url})` : ''}`, {
             gapBefore: 6,

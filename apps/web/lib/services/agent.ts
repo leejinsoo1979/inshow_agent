@@ -5,8 +5,12 @@ import {
   planAgentResponse,
   requiresCitation,
   type AgentActionInput,
+  type AgentPlan,
+  type LlmProvider,
   type SearchResult,
 } from '@archi/ai';
+import { blockInputSchema } from '@archi/editor';
+import { getLlmProviderForWorkspace } from './llm-config';
 import { sanitizeUntrustedText } from '@archi/security';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
@@ -35,7 +39,11 @@ export const chatRequestSchema = z.object({
  * 사용자 메시지 저장 → mock LLM 계획 → assistant 메시지 + PROPOSED 액션 저장
  */
 export async function chat(userId: string, input: z.infer<typeof chatRequestSchema>) {
-  await requireDocumentCapability(userId, input.documentId, Capabilities.USE_AI);
+  const { workspaceId } = await requireDocumentCapability(
+    userId,
+    input.documentId,
+    Capabilities.USE_AI,
+  );
 
   const document = await prisma.document.findUniqueOrThrow({
     where: { id: input.documentId },
@@ -85,7 +93,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     }));
   }
 
-  const plan = planAgentResponse({
+  let plan = planAgentResponse({
     message: input.message,
     documentId: document.id,
     documentTitle: document.title,
@@ -93,6 +101,22 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     selectedBlockText,
     searchResults,
   });
+
+  // 워크스페이스에 실제 LLM API가 등록되어 있으면 LLM 기반 초안 생성 시도.
+  // 법규/공법 질문은 citation 강제 규칙 때문에 항상 검색 기반 플로우를 따른다.
+  if (!requiresCitation(input.message)) {
+    const provider = await getLlmProviderForWorkspace(workspaceId);
+    if (provider.name !== 'mock') {
+      const llmPlan = await planWithLlm(provider, {
+        message: input.message,
+        documentId: document.id,
+        documentTitle: document.title,
+        selectedBlockId,
+        selectedBlockText,
+      });
+      if (llmPlan) plan = llmPlan;
+    }
+  }
 
   // 액션은 저장 전 서버에서 zod 재검증한다 (allowlist + schema)
   const validActions = plan.actions.map((a) => agentActionSchema.parse(a));
@@ -222,6 +246,82 @@ export async function rejectAction(userId: string, actionId: string) {
     after: { status: rejected.status },
   });
   return { status: rejected.status };
+}
+
+const llmPlanResponseSchema = z.object({
+  reply: z.string().min(1),
+  blocks: z.array(blockInputSchema).default([]),
+  updated_text: z.string().optional(),
+});
+
+/**
+ * 실제 LLM으로 초안/수정안 생성.
+ * 응답은 JSON으로 강제하고 블록은 zod로 재검증한다. 실패 시 null을 반환해 mock 플랜으로 폴백.
+ */
+async function planWithLlm(
+  provider: LlmProvider,
+  args: {
+    message: string;
+    documentId: string;
+    documentTitle?: string;
+    selectedBlockId?: string;
+    selectedBlockText?: string;
+  },
+): Promise<AgentPlan | null> {
+  const system = [
+    '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
+    '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 다른 텍스트를 붙이지 마라.',
+    '형식: {"reply": "사용자에게 보여줄 한국어 응답", "blocks": [...], "updated_text": "선택 블록 수정안(선택)"}',
+    'blocks 항목은 다음 타입만 허용: heading {level:1|2|3, text}, paragraph {text}, checklist {title?, items:[{text, checked:false}]}, cta {text, buttonLabel?, url?}, chart {chartType:"bar"|"line"|"pie", title?, labels:[...], series:[{name?, values:[숫자...]}]},',
+    '문서에 삽입할 내용이 없으면 blocks는 빈 배열로 둔다.',
+    '사용자가 선택한 블록의 수정을 요청하면 updated_text에 수정안만 넣고 blocks는 비운다.',
+  ].join('\n');
+
+  const prompt = [
+    `문서 제목: ${args.documentTitle ?? '(없음)'}`,
+    args.selectedBlockText ? `선택된 블록 내용: ${args.selectedBlockText}` : '',
+    `사용자 요청: ${args.message}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  try {
+    const result = await provider.generateText({ system, prompt, maxTokens: 3000 });
+    const jsonText = extractJsonObject(result.text);
+    const parsed = llmPlanResponseSchema.parse(JSON.parse(jsonText));
+
+    const actions: AgentActionInput[] = [];
+    if (args.selectedBlockId && parsed.updated_text) {
+      actions.push({
+        action_type: 'update_block',
+        target: { documentId: args.documentId, blockId: args.selectedBlockId },
+        payload: { content: { text: parsed.updated_text } },
+        requires_approval: true,
+        risk_level: 'low',
+      });
+    } else if (parsed.blocks.length > 0) {
+      actions.push({
+        action_type: 'insert_blocks',
+        target: { documentId: args.documentId },
+        payload: { blocks: parsed.blocks },
+        requires_approval: true,
+        risk_level: 'low',
+      });
+    }
+    return { reply: parsed.reply, actions };
+  } catch (error) {
+    console.warn('[agent] LLM 플랜 생성 실패, mock 플랜으로 폴백합니다:', error);
+    return null;
+  }
+}
+
+function extractJsonObject(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end <= start) throw new Error('LLM 응답에서 JSON을 찾지 못했습니다.');
+  return candidate.slice(start, end + 1);
 }
 
 async function executeAction(userId: string, action: AgentActionInput) {

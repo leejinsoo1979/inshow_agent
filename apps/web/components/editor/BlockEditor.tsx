@@ -30,6 +30,12 @@ const NEW_BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
   [BlockTypes.CHECKLIST]: { title: '', items: [{ text: '', checked: false }] },
   [BlockTypes.SOURCE_REFERENCE]: { title: '', summary: '', citations: [] },
   [BlockTypes.CTA]: { text: '', buttonLabel: '', url: '' },
+  [BlockTypes.CHART]: {
+    chartType: 'bar',
+    title: '',
+    labels: ['항목 1', '항목 2', '항목 3'],
+    series: [{ name: '', values: [10, 20, 15] }],
+  },
 };
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -39,6 +45,7 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   checklist: '체크리스트',
   source_reference: '출처',
   cta: 'CTA',
+  chart: '차트',
 };
 
 type Props = {
