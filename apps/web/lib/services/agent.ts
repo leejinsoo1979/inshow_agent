@@ -135,6 +135,9 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     searchResults,
   });
 
+  // RAG: 사용자가 승인한 지식 그래프에서 메시지와 관련된 노드/관계를 컨텍스트로 주입한다.
+  const knowledgeContext = await buildKnowledgeContext(workspaceId, input.message);
+
   // 워크스페이스에 실제 LLM API가 등록되어 있으면 LLM 기반 초안 생성 시도.
   // 법규/공법 질문은 citation 강제 규칙 때문에 항상 검색 기반 플로우를 따른다.
   if (!requiresCitation(input.message)) {
@@ -148,6 +151,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
         selectedBlockText,
         siblingText,
         documentOutline,
+        knowledgeContext,
         role: agentRole,
       });
       // 실제 LLM이 등록됐으면 결과를 그대로 쓴다. 실패해도 mock 문구로 숨기지 않고
@@ -309,6 +313,56 @@ const llmPlanResponseSchema = z.object({
 });
 
 /**
+ * RAG: 워크스페이스의 '승인된' 온톨로지 노드 중 메시지에 언급된 것과 그 관계를 컨텍스트 문자열로 만든다.
+ * 승인된 지식만 사용한다(후보/반려 제외). 관련 항목이 없으면 undefined.
+ */
+export async function buildKnowledgeContext(
+  workspaceId: string,
+  message: string,
+): Promise<string | undefined> {
+  try {
+    const approved = await prisma.ontologyNode.findMany({
+      where: { workspaceId, status: 'APPROVED' },
+      take: 200,
+    });
+    if (approved.length === 0) return undefined;
+    const msgLower = message.toLowerCase();
+    const relevant = approved.filter(
+      (n) => n.label && msgLower.includes(n.label.toLowerCase()),
+    );
+    if (relevant.length === 0) return undefined;
+
+    const ids = relevant.map((n) => n.id);
+    const edges = await prisma.ontologyEdge.findMany({
+      where: {
+        workspaceId,
+        status: 'APPROVED',
+        OR: [{ sourceNodeId: { in: ids } }, { targetNodeId: { in: ids } }],
+      },
+      take: 40,
+    });
+    const labelById = new Map(approved.map((n) => [n.id, n.label]));
+    const nodeLines = relevant
+      .slice(0, 8)
+      .map((n) => `- ${n.label}${n.description ? `: ${n.description}` : ''}`);
+    const edgeLines = edges
+      .map((e) => {
+        const s = labelById.get(e.sourceNodeId);
+        const t = labelById.get(e.targetNodeId);
+        return s && t ? `- ${s} →(${e.relationType}) ${t}` : null;
+      })
+      .filter((x): x is string => x !== null);
+    return [
+      '관련 지식 (사용자가 승인한 지식 그래프 — 우선 활용하고 사실과 다르면 무시):',
+      ...nodeLines,
+      ...(edgeLines.length > 0 ? ['관계:', ...edgeLines] : []),
+    ].join('\n');
+  } catch {
+    return undefined; // 지식 주입 실패는 치명적이지 않다
+  }
+}
+
+/**
  * 실제 LLM으로 초안/수정안 생성.
  * 응답은 JSON으로 강제하고 블록은 zod로 재검증한다. 실패 시 null을 반환해 mock 플랜으로 폴백.
  */
@@ -324,6 +378,7 @@ async function planWithLlm(
     selectedBlockText?: string;
     siblingText?: string;
     documentOutline?: string;
+    knowledgeContext?: string;
     role?: AgentRole;
   },
 ): Promise<PlanResult> {
@@ -359,6 +414,7 @@ async function planWithLlm(
   const prompt = [
     `문서 제목: ${args.documentTitle ?? '(없음)'}`,
     args.documentOutline ? `문서 구조(아웃라인):\n${args.documentOutline}` : '',
+    args.knowledgeContext ?? '',
     args.selectedBlockText ? `선택된 블록 내용: ${args.selectedBlockText}` : '',
     args.siblingText ? `선택 블록 주변 맥락:\n${args.siblingText}` : '',
     '위 문서 구조와 맥락에 어울리도록, 중복되지 않게 작성해라.',

@@ -6,7 +6,7 @@ import { addMember, createUserWithWorkspace, resetDb } from '../test/testdb';
 import { createProject } from './projects';
 import { createDocument, getDocument } from './documents';
 import { addBlock } from './blocks';
-import { approveAction, chat, rejectAction } from './agent';
+import { approveAction, buildKnowledgeContext, chat, rejectAction } from './agent';
 
 beforeEach(async () => {
   await resetDb();
@@ -103,6 +103,35 @@ describe('replace_block_content / append_to_block 액션', () => {
     const fetched = await getDocument(user.id, doc.id);
     const text = (fetched.blocks.find((b) => b.id === block.id)!.content as { text: string }).text;
     expect(text).toBe('교체본');
+  });
+});
+
+describe('RAG 지식 컨텍스트(buildKnowledgeContext)', () => {
+  it('승인된 노드만, 메시지에 언급된 라벨만 컨텍스트로 만든다', async () => {
+    const { user, workspace } = await createUserWithWorkspace();
+    await prisma.ontologyNode.createMany({
+      data: [
+        { workspaceId: workspace.id, label: '결로', type: 'defect', status: 'APPROVED', description: '표면 응결' },
+        { workspaceId: workspace.id, label: '단열재', type: 'material', status: 'APPROVED' },
+        { workspaceId: workspace.id, label: '몰딩', type: 'material', status: 'CANDIDATE' }, // 후보(미승인)
+      ],
+    });
+    void user;
+
+    const ctx = await buildKnowledgeContext(workspace.id, '결로 방지 방법 알려줘');
+    expect(ctx).toBeTruthy();
+    expect(ctx).toContain('결로');
+    expect(ctx).toContain('표면 응결');
+    // 언급 안 된 승인 노드는 제외
+    expect(ctx).not.toContain('단열재');
+
+    // 승인 안 된(후보) 노드는 언급돼도 제외
+    const ctx2 = await buildKnowledgeContext(workspace.id, '몰딩 시공');
+    expect(ctx2).toBeUndefined();
+
+    // 관련 없는 메시지는 undefined
+    const ctx3 = await buildKnowledgeContext(workspace.id, '안녕하세요');
+    expect(ctx3).toBeUndefined();
   });
 });
 

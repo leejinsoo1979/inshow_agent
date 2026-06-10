@@ -123,14 +123,15 @@ export default function OntologyPage() {
     }
   }, [selectedId, note]);
 
-  async function handleApprove(nodeId: string) {
+  async function handleReview(nodeId: string, status: 'APPROVED' | 'REJECTED') {
     if (busy || !workspaceId) return;
     setBusy(true);
     try {
       await apiFetch(`/api/ontology/nodes/${nodeId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: 'APPROVED' }),
+        body: JSON.stringify({ status }),
       });
+      if (status === 'REJECTED') setSelectedId(null);
       loadGraph(workspaceId, statusFilter);
     } catch (e) {
       setError((e as Error).message);
@@ -432,15 +433,22 @@ export default function OntologyPage() {
             )}
           </div>
 
-          {/* 후보 노드 승인 */}
+          {/* 후보 노드 검수: 승인 / 반려 */}
           {selected.status === 'CANDIDATE' && (
-            <div className="border-t border-white/10 p-4">
+            <div className="flex gap-2 border-t border-white/10 p-4">
               <button
-                onClick={() => handleApprove(selected.id)}
+                onClick={() => handleReview(selected.id, 'APPROVED')}
                 disabled={busy}
-                className="w-full rounded-lg bg-white py-2 text-xs font-bold text-zinc-900 disabled:opacity-50"
+                className="flex-1 rounded-lg bg-white py-2 text-xs font-bold text-zinc-900 disabled:opacity-50"
               >
-                승인 (관리자)
+                승인
+              </button>
+              <button
+                onClick={() => handleReview(selected.id, 'REJECTED')}
+                disabled={busy}
+                className="flex-1 rounded-lg border border-white/20 py-2 text-xs font-bold text-zinc-300 hover:border-white hover:text-white disabled:opacity-50"
+              >
+                반려
               </button>
             </div>
           )}
