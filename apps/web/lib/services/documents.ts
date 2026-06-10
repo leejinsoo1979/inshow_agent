@@ -1,5 +1,5 @@
 import { prisma, type Prisma } from '@archi/db';
-import { getTemplateBlocks, type DocumentTypeKey } from '@archi/editor';
+import { getProfessionalTemplate, getTemplateBlocks, flattenTemplate, type DocumentTypeKey } from '@archi/editor';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireDocumentCapability, requireProjectCapability } from '../authz';
@@ -13,6 +13,8 @@ export const createDocumentSchema = z.object({
     .default('BLOG_POST'),
   /** true면 문서 유형에 맞는 블록 템플릿으로 초기 구조를 구성한다 */
   withTemplate: z.boolean().default(false),
+  /** 전문 템플릿 id (container 기반 구조화 문서). 지정 시 type은 템플릿의 documentType을 따른다. */
+  templateId: z.string().optional(),
 });
 
 export const updateDocumentSchema = z.object({
@@ -26,6 +28,42 @@ export async function createDocument(
 ) {
   const input = createDocumentSchema.parse(rawInput);
   await requireProjectCapability(userId, input.projectId, Capabilities.EDIT_DOCUMENTS);
+
+  // 전문 템플릿: container 자식 관계(parentId)가 필요하므로 블록을 순차 생성한다.
+  const professional = input.templateId ? getProfessionalTemplate(input.templateId) : undefined;
+  if (professional) {
+    const flat = flattenTemplate(professional.nodes);
+    const document = await prisma.document.create({
+      data: { projectId: input.projectId, title: input.title, type: professional.documentType },
+    });
+    const dbIds: string[] = [];
+    for (let i = 0; i < flat.length; i++) {
+      const { block, parentIndex } = flat[i]!;
+      const created = await prisma.documentBlock.create({
+        data: {
+          documentId: document.id,
+          parentId: parentIndex != null ? dbIds[parentIndex]! : null,
+          type: block.type,
+          sortOrder: i,
+          content: block.content as Prisma.InputJsonValue,
+          metadata: (block.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        },
+      });
+      dbIds[i] = created.id;
+    }
+    await writeAuditLog({
+      actorId: userId,
+      action: 'document.create',
+      targetType: 'Document',
+      targetId: document.id,
+      after: { title: document.title, type: document.type, template: professional.id },
+    });
+    return prisma.document.findUniqueOrThrow({
+      where: { id: document.id },
+      include: { blocks: { orderBy: { sortOrder: 'asc' } } },
+    });
+  }
+
   const templateBlocks = input.withTemplate
     ? getTemplateBlocks(input.type as DocumentTypeKey)
     : [];

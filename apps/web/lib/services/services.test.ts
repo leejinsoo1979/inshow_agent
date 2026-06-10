@@ -10,6 +10,27 @@ beforeEach(async () => {
   await resetDb();
 });
 
+describe('전문 템플릿 문서 생성', () => {
+  it('templateId 지정 시 container와 자식 블록이 parentId로 연결돼 생성된다', async () => {
+    const { user, workspace } = await createUserWithWorkspace();
+    const project = await createProject(user.id, { workspaceId: workspace.id, name: '템플릿 테스트' });
+    const doc = await createDocument(user.id, {
+      projectId: project.id,
+      title: '기술자료',
+      templateId: 'interior-tech-doc',
+    });
+    const blocks = await prisma.documentBlock.findMany({
+      where: { documentId: doc.id },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const container = blocks.find((b) => b.type === 'container');
+    expect(container).toBeTruthy();
+    const children = blocks.filter((b) => b.parentId === container!.id);
+    expect(children.length).toBeGreaterThan(0);
+    expect(children.some((c) => c.type === 'law_reference' || c.type === 'formula')).toBe(true);
+  });
+});
+
 describe('workspace 권한 체크', () => {
   it('비멤버는 프로젝트를 만들 수 없다 (404로 워크스페이스 존재를 숨김)', async () => {
     const { workspace } = await createUserWithWorkspace();

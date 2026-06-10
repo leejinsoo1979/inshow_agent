@@ -13,6 +13,7 @@ import {
   FiSearch,
   FiShare2,
 } from 'react-icons/fi';
+import { listProfessionalTemplates } from '@archi/editor';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
 
@@ -201,6 +202,31 @@ export default function StudioDashboardPage() {
     }
   }
 
+  /** 전문 템플릿으로 즉시 생성 (container 기반 구조화 문서) */
+  async function handleCreateFromTemplate(tpl: { id: string; label: string }) {
+    if (!workspaceId || creating) return;
+    setCreating(`tpl:${tpl.id}`);
+    setError(null);
+    try {
+      let projectId = projects[0]?.id;
+      if (!projectId) {
+        const project = await apiFetch<{ id: string }>('/api/projects', {
+          method: 'POST',
+          body: JSON.stringify({ workspaceId, name: '내 작업' }),
+        });
+        projectId = project.id;
+      }
+      const doc = await apiFetch<{ id: string }>('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({ projectId, title: tpl.label, templateId: tpl.id }),
+      });
+      router.push(`/studio/${doc.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setCreating(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-100 text-sm text-zinc-400">
@@ -279,6 +305,29 @@ export default function StudioDashboardPage() {
                   </p>
                 </button>
               ))}
+            </div>
+
+            {/* 전문 템플릿 (container 기반 구조화 문서) */}
+            <div className="mb-10">
+              <h2 className="mb-1 text-sm font-bold text-zinc-900">전문 템플릿</h2>
+              <p className="mb-3 text-[11px] text-zinc-500">
+                컨테이너·법규·계산식·견적표까지 구조가 잡힌 문서로 바로 시작하세요.
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {listProfessionalTemplates().map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => handleCreateFromTemplate(tpl)}
+                    disabled={creating !== null}
+                    className="group rounded-xl border border-zinc-200 bg-white p-3 text-left transition hover:border-zinc-900 hover:shadow-sm disabled:opacity-60"
+                  >
+                    <p className="text-[13px] font-bold text-zinc-900">{tpl.label}</p>
+                    <p className="mt-0.5 text-[10px] leading-4 text-zinc-400">
+                      {creating === `tpl:${tpl.id}` ? '만드는 중...' : tpl.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 현황 스탯 */}
