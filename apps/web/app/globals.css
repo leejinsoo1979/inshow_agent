@@ -36,3 +36,9 @@ body {
 .dark .text-ghost {
   -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.28);
 }
+
+/* 항상 다크 배경 위에서 쓰는 고스트 (테마 무관) */
+.text-ghost-dark {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.28);
+}
