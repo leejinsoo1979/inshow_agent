@@ -5,6 +5,9 @@ export const metadata = {
   title: '로그인 · ARCHI Agent Studio',
 };
 
+// provider 활성 여부를 런타임 env로 판단하므로 정적 프리렌더하지 않는다.
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const providers = enabledProviderIds();
 
