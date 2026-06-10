@@ -26,7 +26,18 @@
 | 우측 구조 패널(#14) | flat | **트리** | parentId 기준 들여쓰기 |
 | 액션 타입 수(보조) | 2/25 | **5/25** | insert_blocks·update_block·replace_block_content·append_to_block·create_container |
 
-**아직 남은 핵심**: 전문 템플릿 9종, 캔버스 내 container WYSIWYG 중첩 편집, 지식 review inbox UI, RAG(승인 지식노드) 주입, 캔버스 PDF의 스크린샷 방식(스펙상 비권장이나 사용자 요청). 아래 원본 검수표는 *초기 스냅샷*이며, 위 표가 최신 상태다.
+### 2차 추가 구현 (같은 날 후속)
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| 전문 템플릿 9종 | **완료** | `templates.ts` professionalTemplates(container 트리) + createDocument(templateId) + 대시보드 섹션. 테스트 |
+| 지식 RAG 주입 | **완료** | `buildKnowledgeContext`: 승인된 온톨로지 노드/관계를 메시지 매칭해 LLM 프롬프트 주입(후보 제외). 테스트 |
+| 지식 검수(반려) | **완료** | 온톨로지 노드 패널에 승인/반려 버튼(status REJECTED) |
+| 캔버스 container 그룹 | **완료** | 컨테이너 드래그·삭제 시 자식 동반(withChildren). E2E 확인 |
+
+**최종 상태**: 테스트 **116개** 통과. 블록 18종+container, AI 액션 5종, 전문 템플릿 9종, container 계층(데이터·트리·내보내기·캔버스 그룹), RAG, JSON export 완료.
+
+**아직 남은 항목**: 캔버스 내 container WYSIWYG 시각 중첩(자식을 박스 안에 그리는 렌더 — 현재는 '그룹 동작'으로 대체), 블록 타입 18/30 중 잔여 12종, 캔버스 PDF의 스크린샷 방식(스펙상 비권장이나 사용자 명시 요청). 아래 원본 검수표는 *초기 스냅샷*이며, 위 두 표가 최신 상태다.
 
 ---
 
