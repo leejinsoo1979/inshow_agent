@@ -40,3 +40,4 @@ packages/db/prisma/*.db
 # Next.js
 next-env.d.ts
 .storage/
+.claude/settings.json

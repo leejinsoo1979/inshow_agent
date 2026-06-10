@@ -9,6 +9,7 @@ import {
   getLlmProviderForWorkspace,
   listLlmConfigs,
   registerLlmConfig,
+  saveAnthropicOAuthConfig,
 } from './llm-config';
 import { createProject } from './projects';
 import { createDocument, getDocument } from './documents';
@@ -57,6 +58,46 @@ describe('LLM API 등록', () => {
     await expect(listLlmConfigs(editor.id, workspace.id)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('Claude 계정 OAuth 연결: 토큰 암호화 저장, 마스킹 표시, provider 선택', async () => {
+    const { user, workspace } = await createUserWithWorkspace(); // OWNER
+
+    const config = await saveAnthropicOAuthConfig(user.id, workspace.id, {
+      access_token: 'oauth-access-비밀토큰-9999',
+      refresh_token: 'oauth-refresh-비밀-8888',
+      expires_in: 3600,
+    });
+    expect(config.authType).toBe('oauth');
+    expect(config.maskedApiKey).toBe('Claude 계정 연결됨');
+    expect(JSON.stringify(config)).not.toContain('비밀토큰');
+
+    // 목록에서도 토큰 원문 노출 없음
+    const configs = await listLlmConfigs(user.id, workspace.id);
+    expect(configs[0]!.authType).toBe('oauth');
+    expect(JSON.stringify(configs)).not.toContain('oauth-access');
+
+    // provider 선택 시 anthropic (만료 전이라 refresh 불필요)
+    const provider = await getLlmProviderForWorkspace(workspace.id);
+    expect(provider.name).toBe('anthropic');
+
+    // OAuth 연결 후 API 키 등록 시 교체된다
+    await registerLlmConfig(user.id, {
+      workspaceId: workspace.id,
+      provider: 'anthropic',
+      apiKey: 'sk-ant-new-key-1234',
+    });
+    const after = await listLlmConfigs(user.id, workspace.id);
+    expect(after).toHaveLength(1);
+    expect(after[0]!.authType).toBe('api_key');
+  });
+
+  it('EDITOR는 OAuth 연결을 만들 수 없다', async () => {
+    const { organization, workspace } = await createUserWithWorkspace();
+    const editor = await addMember(organization.id, Roles.EDITOR);
+    await expect(
+      saveAnthropicOAuthConfig(editor.id, workspace.id, { access_token: 'tok' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('등록된 provider가 선택되고, 삭제하면 mock으로 돌아간다', async () => {

@@ -412,15 +412,19 @@ model TaskEvent {
 }
 
 model LlmProviderConfig {
-  id              String   @id @default(cuid())
-  workspaceId     String
-  provider        String // anthropic | openai | custom
-  model           String?
-  baseUrl         String?
-  encryptedApiKey String
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  workspaceId           String
+  provider              String // anthropic | openai | custom
+  authType              String    @default("api_key") // api_key | oauth
+  model                 String?
+  baseUrl               String?
+  encryptedApiKey       String?
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([workspaceId, isActive])
 }

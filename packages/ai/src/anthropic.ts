@@ -7,14 +7,33 @@ import type {
 
 /**
  * Anthropic Claude API 어댑터 (fetch 기반, SDK 의존성 없음).
- * 워크스페이스 설정에서 등록한 API 키로 생성된다.
+ * 인증: API 키(x-api-key) 또는 OAuth Bearer 토큰(Claude 계정 연결) 둘 다 지원.
  */
 export class AnthropicProvider implements LlmProvider {
   readonly name = 'anthropic';
 
   constructor(
-    private readonly options: { apiKey: string; model?: string; baseUrl?: string },
+    private readonly options: {
+      apiKey?: string;
+      /** Claude 계정 OAuth access token */
+      authToken?: string;
+      model?: string;
+      baseUrl?: string;
+    },
   ) {}
+
+  private authHeaders(): Record<string, string> {
+    if (this.options.authToken) {
+      return {
+        authorization: `Bearer ${this.options.authToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      };
+    }
+    if (this.options.apiKey) {
+      return { 'x-api-key': this.options.apiKey };
+    }
+    throw new Error('Anthropic 인증 정보(apiKey 또는 authToken)가 없습니다.');
+  }
 
   async generateText(input: GenerateTextInput): Promise<GenerateTextResult> {
     const baseUrl = this.options.baseUrl?.replace(/\/$/, '') || 'https://api.anthropic.com';
@@ -22,7 +41,7 @@ export class AnthropicProvider implements LlmProvider {
     const response = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
-        'x-api-key': this.options.apiKey,
+        ...this.authHeaders(),
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
