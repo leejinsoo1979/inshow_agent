@@ -109,7 +109,7 @@ export default function DocumentStudioPage({
           ))}
           {viewMode === 'canvas' && (
             <span className="ml-2 text-[11px] text-zinc-400">
-              그립(⠿)으로 이동 · 우하단 모서리로 크기 조절
+              클릭=선택 · 드래그=이동 · 모서리/변 핸들=크기 조절 · 더블클릭=편집 (정렬 시 가이드 표시)
             </span>
           )}
         </div>
