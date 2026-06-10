@@ -372,9 +372,7 @@ export default function LandingPage() {
             <h1 className={`${display.className} text-[15vw] leading-[1.02] ${ACCENT} sm:text-7xl md:text-[6rem] lg:text-[7rem]`}>
               문서를 직접
               <br />
-              <span className="inline-block bg-zinc-900 px-4 text-white dark:bg-white dark:text-black">
-                {HERO_WORDS[heroWord]}
-              </span>
+              <span className="text-ghost">{HERO_WORDS[heroWord]}</span>
               <br />
               AI 에이전트
             </h1>
@@ -894,7 +892,7 @@ export default function LandingPage() {
           <h2 className={`${display.className} text-6xl leading-[0.98] ${ACCENT} md:text-8xl`}>
             당신의 첫
             <br />
-            <span className="inline-block bg-zinc-900 px-5 text-white dark:bg-white dark:text-black">기술문서</span>
+            <span className="text-ghost">기술문서</span>
             <br />
             지금 시작.
           </h2>
