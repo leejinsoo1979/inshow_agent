@@ -51,6 +51,14 @@ type Props = {
 const ACTION_LABELS: Record<string, string> = {
   insert_blocks: '블록 삽입',
   update_block: '블록 수정',
+  replace_block_content: '블록 내용 교체',
+  append_to_block: '블록에 이어쓰기',
+  create_container: '컨테이너 생성',
+  insert_block_before: '앞에 블록 삽입',
+  create_child_block: '자식 블록 추가',
+  convert_block_type: '블록 타입 변환',
+  update_block_title: '제목 변경',
+  mark_block_approved: '블록 승인',
 };
 
 export function AIChatPanel({
@@ -452,9 +460,55 @@ function ActionPayloadPreview({ type, payload }: { type: string; payload: unknow
       </ul>
     );
   }
-  if (type === 'update_block') {
-    const p = payload as { payload?: { content?: { text?: string } } };
-    return <p className="line-clamp-3 text-xs text-zinc-300">{p.payload?.content?.text ?? ''}</p>;
+  if (type === 'update_block' || type === 'replace_block_content') {
+    const p = payload as { payload?: { content?: { text?: string; title?: string } } };
+    return (
+      <p className="line-clamp-3 text-xs text-zinc-300">
+        {p.payload?.content?.text ?? p.payload?.content?.title ?? '(내용 변경)'}
+      </p>
+    );
+  }
+  if (type === 'append_to_block') {
+    const p = payload as { payload?: { text?: string } };
+    return <p className="line-clamp-3 text-xs text-zinc-300">＋ {p.payload?.text ?? ''}</p>;
+  }
+  if (type === 'create_container') {
+    const p = payload as { payload?: { title?: string; children?: unknown[] } };
+    return (
+      <p className="text-xs text-zinc-300">
+        📦 {p.payload?.title ?? '컨테이너'}{' '}
+        <span className="text-zinc-500">· 자식 {p.payload?.children?.length ?? 0}개</span>
+      </p>
+    );
+  }
+  if (type === 'insert_block_before' || type === 'create_child_block') {
+    const p = payload as {
+      payload?: {
+        blocks?: { type: string; content: { text?: string; title?: string } }[];
+        block?: { type: string; content: { text?: string; title?: string } };
+      };
+    };
+    const list = p.payload?.blocks ?? (p.payload?.block ? [p.payload.block] : []);
+    return (
+      <ul className="space-y-1 text-xs text-zinc-300">
+        {list.map((b, i) => (
+          <li key={i} className="truncate">
+            <span className="text-zinc-500">{b.type}</span> {b.content.text ?? b.content.title ?? ''}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (type === 'convert_block_type') {
+    const p = payload as { payload?: { block?: { type?: string } } };
+    return <p className="text-xs text-zinc-300">→ {p.payload?.block?.type ?? ''} 타입으로 변환</p>;
+  }
+  if (type === 'update_block_title') {
+    const p = payload as { payload?: { title?: string } };
+    return <p className="text-xs text-zinc-300">제목: {p.payload?.title ?? ''}</p>;
+  }
+  if (type === 'mark_block_approved') {
+    return <p className="text-xs text-zinc-300">이 블록을 검수 완료로 표시합니다.</p>;
   }
   return null;
 }

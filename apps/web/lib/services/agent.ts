@@ -665,6 +665,79 @@ async function executeAction(userId: string, action: AgentActionInput) {
       }
       return { containerId: container.id, childBlockIds, warnings };
     }
+    case 'insert_block_before': {
+      const inserted: string[] = [];
+      let afterId: string | undefined;
+      let first = true;
+      for (const block of action.payload.blocks) {
+        const created = first
+          ? await addBlock(userId, action.target.documentId, {
+              beforeBlockId: action.target.beforeBlockId,
+              block,
+            })
+          : await addBlock(userId, action.target.documentId, { afterBlockId: afterId, block });
+        inserted.push(created.id);
+        afterId = created.id;
+        first = false;
+      }
+      return { insertedBlockIds: inserted, warnings };
+    }
+    case 'create_child_block': {
+      const created = await addBlock(userId, action.target.documentId, {
+        parentId: action.target.parentId,
+        afterBlockId: action.target.afterBlockId,
+        block: action.payload.block,
+      });
+      return { insertedBlockIds: [created.id], warnings };
+    }
+    case 'convert_block_type': {
+      // capability는 approveAction에서 EDIT_DOCUMENTS로 이미 확인됨. 새 타입/내용은 스키마로 검증됨.
+      const updated = await prisma.documentBlock.update({
+        where: { id: action.target.blockId },
+        data: {
+          type: action.payload.block.type,
+          content: action.payload.block.content as Prisma.InputJsonValue,
+        },
+      });
+      return { updatedBlockId: updated.id, warnings };
+    }
+    case 'update_block_title': {
+      const block = await prisma.documentBlock.findUnique({
+        where: { id: action.target.blockId },
+      });
+      if (!block) {
+        throw new AppError(ErrorCodes.NOT_FOUND, { message: '블록을 찾을 수 없습니다.' });
+      }
+      const content = block.content as Record<string, unknown>;
+      const field = 'title' in content ? 'title' : 'heading' in content ? 'heading' : 'title';
+      const updated = await updateBlock(userId, action.target.blockId, {
+        content: { ...content, [field]: action.payload.title },
+      });
+      return { updatedBlockId: updated.id, warnings };
+    }
+    case 'mark_block_approved': {
+      const block = await prisma.documentBlock.findUnique({
+        where: { id: action.target.blockId },
+      });
+      if (!block) {
+        throw new AppError(ErrorCodes.NOT_FOUND, { message: '블록을 찾을 수 없습니다.' });
+      }
+      const meta =
+        block.metadata && typeof block.metadata === 'object'
+          ? (block.metadata as Record<string, unknown>)
+          : {};
+      const updated = await prisma.documentBlock.update({
+        where: { id: action.target.blockId },
+        data: { metadata: { ...meta, approved: true } as Prisma.InputJsonValue },
+      });
+      await writeAuditLog({
+        actorId: userId,
+        action: 'block.approve',
+        targetType: 'DocumentBlock',
+        targetId: updated.id,
+      });
+      return { updatedBlockId: updated.id, warnings };
+    }
   }
 }
 

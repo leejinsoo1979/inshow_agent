@@ -7,6 +7,8 @@ import { writeAuditLog } from '../audit';
 
 export const addBlockSchema = z.object({
   afterBlockId: z.string().optional(),
+  /** 기준 블록 '앞'에 삽입할 때 사용 */
+  beforeBlockId: z.string().optional(),
   /** 컨테이너 블록의 자식으로 추가할 때 부모 블록 id */
   parentId: z.string().optional(),
   block: blockInputSchema,
@@ -50,7 +52,19 @@ export async function addBlock(
 
   const block = await prisma.$transaction(async (tx) => {
     let sortOrder: number;
-    if (input.afterBlockId) {
+    if (input.beforeBlockId) {
+      const before = await tx.documentBlock.findFirst({
+        where: { id: input.beforeBlockId, documentId },
+      });
+      if (!before) {
+        throw new AppError(ErrorCodes.NOT_FOUND, { message: '기준 블록을 찾을 수 없습니다.' });
+      }
+      sortOrder = before.sortOrder;
+      await tx.documentBlock.updateMany({
+        where: { documentId, sortOrder: { gte: sortOrder } },
+        data: { sortOrder: { increment: 1 } },
+      });
+    } else if (input.afterBlockId) {
       const after = await tx.documentBlock.findFirst({
         where: { id: input.afterBlockId, documentId },
       });

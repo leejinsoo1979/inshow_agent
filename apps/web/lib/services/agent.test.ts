@@ -174,6 +174,72 @@ describe('create_container 액션', () => {
   });
 });
 
+describe('확장 AI 액션', () => {
+  async function makeAction(documentId: string, type: string, payload: Record<string, unknown>) {
+    return prisma.agentAction.create({
+      data: {
+        documentId,
+        type,
+        payload: { action_type: type, ...payload, requires_approval: true, risk_level: 'low' },
+        riskLevel: 'low',
+        requiresApproval: true,
+      },
+    });
+  }
+
+  it('insert_block_before는 기준 블록 앞에 삽입한다', async () => {
+    const { user, doc } = await setupDocument();
+    const b1 = await addBlock(user.id, doc.id, { block: { type: 'paragraph', content: { text: '기존' } } });
+    const action = await makeAction(doc.id, 'insert_block_before', {
+      target: { documentId: doc.id, beforeBlockId: b1.id },
+      payload: { blocks: [{ type: 'heading', content: { level: 2, text: '앞에' } }] },
+    });
+    await approveAction(user.id, action.id);
+    const fetched = await getDocument(user.id, doc.id);
+    expect(fetched.blocks[0]!.type).toBe('heading');
+    expect(fetched.blocks[1]!.id).toBe(b1.id);
+  });
+
+  it('create_child_block은 컨테이너 자식으로 추가한다', async () => {
+    const { user, doc } = await setupDocument();
+    const cont = await addBlock(user.id, doc.id, { block: { type: 'container', content: { title: '그룹' } } });
+    const action = await makeAction(doc.id, 'create_child_block', {
+      target: { documentId: doc.id, parentId: cont.id },
+      payload: { block: { type: 'paragraph', content: { text: '자식' } } },
+    });
+    await approveAction(user.id, action.id);
+    const blocks = await prisma.documentBlock.findMany({ where: { documentId: doc.id } });
+    const child = blocks.find((b) => b.parentId === cont.id);
+    expect(child).toBeTruthy();
+    expect(child!.type).toBe('paragraph');
+  });
+
+  it('convert_block_type은 블록 타입과 내용을 바꾼다', async () => {
+    const { user, doc } = await setupDocument();
+    const b1 = await addBlock(user.id, doc.id, { block: { type: 'paragraph', content: { text: '원본' } } });
+    const action = await makeAction(doc.id, 'convert_block_type', {
+      target: { documentId: doc.id, blockId: b1.id },
+      payload: { block: { type: 'callout', content: { variant: 'info', text: '변환됨' } } },
+    });
+    await approveAction(user.id, action.id);
+    const updated = await prisma.documentBlock.findUnique({ where: { id: b1.id } });
+    expect(updated!.type).toBe('callout');
+    expect((updated!.content as { text: string }).text).toBe('변환됨');
+  });
+
+  it('mark_block_approved는 metadata.approved를 설정한다', async () => {
+    const { user, doc } = await setupDocument();
+    const b1 = await addBlock(user.id, doc.id, { block: { type: 'paragraph', content: { text: 'x' } } });
+    const action = await makeAction(doc.id, 'mark_block_approved', {
+      target: { documentId: doc.id, blockId: b1.id },
+      payload: {},
+    });
+    await approveAction(user.id, action.id);
+    const updated = await prisma.documentBlock.findUnique({ where: { id: b1.id } });
+    expect((updated!.metadata as { approved?: boolean })?.approved).toBe(true);
+  });
+});
+
 describe('AI chat → action 승인 플로우', () => {
   it('블로그 초안 요청 시 insert_blocks 액션이 제안되고, 승인 시 블록이 삽입된다', async () => {
     const { user, doc } = await setupDocument();

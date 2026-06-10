@@ -55,12 +55,66 @@ export const createContainerActionSchema = z.object({
   risk_level: riskLevelSchema.default('low'),
 });
 
+/** 기준 블록 '앞'에 블록 삽입 */
+export const insertBlockBeforeActionSchema = z.object({
+  action_type: z.literal('insert_block_before'),
+  target: z.object({ documentId: z.string(), beforeBlockId: z.string() }),
+  payload: z.object({ blocks: z.array(blockInputSchema).min(1) }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('low'),
+});
+
+/** 컨테이너의 자식으로 블록 추가 */
+export const createChildBlockActionSchema = z.object({
+  action_type: z.literal('create_child_block'),
+  target: z.object({
+    documentId: z.string(),
+    parentId: z.string(),
+    afterBlockId: z.string().optional(),
+  }),
+  payload: z.object({ block: blockInputSchema }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('low'),
+});
+
+/** 블록 타입 변환(내용 재검증). 파괴적이므로 medium 위험 */
+export const convertBlockTypeActionSchema = z.object({
+  action_type: z.literal('convert_block_type'),
+  target: z.object({ documentId: z.string(), blockId: z.string() }),
+  payload: z.object({ block: blockInputSchema }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('medium'),
+});
+
+/** 블록 제목/머리말 갱신 */
+export const updateBlockTitleActionSchema = z.object({
+  action_type: z.literal('update_block_title'),
+  target: z.object({ documentId: z.string(), blockId: z.string() }),
+  payload: z.object({ title: z.string() }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('low'),
+});
+
+/** 블록 승인 표시(검수 완료). 승인은 high 위험 */
+export const markBlockApprovedActionSchema = z.object({
+  action_type: z.literal('mark_block_approved'),
+  target: z.object({ documentId: z.string(), blockId: z.string() }),
+  payload: z.object({}).default({}),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('high'),
+});
+
 export const agentActionSchema = z.discriminatedUnion('action_type', [
   insertBlocksActionSchema,
   updateBlockActionSchema,
   replaceBlockContentActionSchema,
   appendToBlockActionSchema,
   createContainerActionSchema,
+  insertBlockBeforeActionSchema,
+  createChildBlockActionSchema,
+  convertBlockTypeActionSchema,
+  updateBlockTitleActionSchema,
+  markBlockApprovedActionSchema,
 ]);
 
 export type AgentActionInput = z.infer<typeof agentActionSchema>;
@@ -69,6 +123,11 @@ export type UpdateBlockAction = z.infer<typeof updateBlockActionSchema>;
 export type ReplaceBlockContentAction = z.infer<typeof replaceBlockContentActionSchema>;
 export type AppendToBlockAction = z.infer<typeof appendToBlockActionSchema>;
 export type CreateContainerAction = z.infer<typeof createContainerActionSchema>;
+export type InsertBlockBeforeAction = z.infer<typeof insertBlockBeforeActionSchema>;
+export type CreateChildBlockAction = z.infer<typeof createChildBlockActionSchema>;
+export type ConvertBlockTypeAction = z.infer<typeof convertBlockTypeActionSchema>;
+export type UpdateBlockTitleAction = z.infer<typeof updateBlockTitleActionSchema>;
+export type MarkBlockApprovedAction = z.infer<typeof markBlockApprovedActionSchema>;
 
 /** 실행 가능한 action type allowlist */
 export const ALLOWED_ACTION_TYPES = [
@@ -77,6 +136,11 @@ export const ALLOWED_ACTION_TYPES = [
   'replace_block_content',
   'append_to_block',
   'create_container',
+  'insert_block_before',
+  'create_child_block',
+  'convert_block_type',
+  'update_block_title',
+  'mark_block_approved',
 ] as const;
 
 export function parseAgentAction(value: unknown): AgentActionInput {
