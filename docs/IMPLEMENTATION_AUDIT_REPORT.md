@@ -11,7 +11,7 @@
 
 ## 업데이트 — 2026-06-11 후속 구현 반영
 
-아래 초기 검수(아침) 이후, 가장 위험한 항목들을 실제로 구현·테스트·커밋했다. 테스트 105 → **114개** 통과.
+아래 초기 검수(아침) 이후, 위험 항목과 나머지 스펙을 실제로 구현·테스트·커밋했다. 테스트 105 → **127개** 통과. **전체 구현률 약 45% → 90%+** (블록 30/30, AI 액션 10종+미리보기, 템플릿 9종, container 계층, RAG, 전 화면 리사이즈, PDF 한글 수정).
 
 | 항목 | 이전 | 현재 | 근거(커밋) |
 |---|---|---|---|
@@ -35,9 +35,19 @@
 | 지식 검수(반려) | **완료** | 온톨로지 노드 패널에 승인/반려 버튼(status REJECTED) |
 | 캔버스 container 그룹 | **완료** | 컨테이너 드래그·삭제 시 자식 동반(withChildren). E2E 확인 |
 
-**최종 상태**: 테스트 **116개** 통과. 블록 18종+container, AI 액션 5종, 전문 템플릿 9종, container 계층(데이터·트리·내보내기·캔버스 그룹), RAG, JSON export 완료.
+### 3차 추가 구현 (나머지 30% 채우기)
 
-**아직 남은 항목**: 캔버스 내 container WYSIWYG 시각 중첩(자식을 박스 안에 그리는 렌더 — 현재는 '그룹 동작'으로 대체), 블록 타입 18/30 중 잔여 12종, 캔버스 PDF의 스크린샷 방식(스펙상 비권장이나 사용자 명시 요청). 아래 원본 검수표는 *초기 스냅샷*이며, 위 두 표가 최신 상태다.
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| 블록 타입 30종 전부 | **완료** | rich_text·image_gallery·before_after·diagram·construction_standard·material_spec·schedule·risk_warning·seo_meta·blog_section·technical_section·ontology_summary 추가(18→30). 스키마+에디터+5 exporter+AI 프롬프트. `blocks.test.ts`로 30종 검증 |
+| AI 액션 10종 | **완료** | insert_block_before·create_child_block·convert_block_type·update_block_title·mark_block_approved 추가(5→10). 실행 테스트 4종 |
+| AI 액션 미리보기 | **완료** | AIChatPanel ActionPayloadPreview가 전 액션 타입 미리보기(파괴적 작업 적용 전 검토) |
+| PDF 한글 깨짐 | **완료** | OTF subset 비활성화 |
+| 좌/우 사이드바 리사이즈 | **완료** | 전 메인 화면 드래그 리사이즈 + 독립 스크롤 |
+
+**최종 상태**: 테스트 **127개** 통과(21 파일). 블록 **30/30종**, AI 액션 **10종**(+미리보기), 전문 템플릿 9종, container 계층(데이터·트리·내보내기·캔버스 그룹), RAG, JSON export, 전 화면 리사이즈 패널 완료.
+
+**아직 남은 항목(소수)**: 캔버스 내 container WYSIWYG 시각 중첩(자식을 박스 안에 그리는 렌더 — '그룹 동작'으로 대체됨), 캔버스 PDF의 스크린샷 방식(스펙상 비권장이나 사용자 명시 요청), 일부 액션의 별도 엔드포인트화(generate_image/edit_image_inpaint/extract_ontology는 전용 API로 이미 존재). 아래 원본 검수표는 *초기 스냅샷*이며, 위 세 표가 최신 상태다.
 
 ---
 
