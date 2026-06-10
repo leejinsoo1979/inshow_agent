@@ -1,6 +1,11 @@
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Next.js의 "@/..." 별칭 (apps/web 기준)
+    alias: { '@': path.resolve(__dirname, 'apps/web') },
+  },
   test: {
     environment: 'node',
     env: {

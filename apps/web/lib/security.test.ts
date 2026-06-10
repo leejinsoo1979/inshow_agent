@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MarkdownExporter } from '@archi/export';
-import { isDevLoginAllowed } from './auth';
+import { isDevLoginAllowed } from './auth-policy';
 import { checkRateLimit, resetRateLimits } from './rate-limit';
 
 beforeEach(() => {
