@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BlockTypes } from '@archi/editor';
+import { FiDownload } from 'react-icons/fi';
 import { apiFetch } from '@/lib/client/api';
+import { exportArtboardToPdf } from '@/lib/client/export-canvas';
 import { BlockContentEditor } from './BlockContentEditor';
 import type { CanvasLayout, DocumentWithBlocks, EditorBlock } from './BlockEditor';
 
@@ -153,6 +155,7 @@ export function CanvasView({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
   const [marquee, setMarquee] = useState<CanvasLayout | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -586,6 +589,28 @@ export function CanvasView({
     );
   }
 
+  /** 화면 그대로 PDF 내보내기 — 선택/핸들/가이드를 먼저 지운 뒤 아트보드를 캡처한다. */
+  async function handleExportPdf() {
+    if (!artboardRef.current || exporting) return;
+    setExporting(true);
+    applySelection(new Set(), null);
+    setEditingId(null);
+    setGuides({ x: [], y: [] });
+    setMarquee(null);
+    // 선택 외곽선이 사라지도록 두 프레임 대기 후 캡처
+    await new Promise<void>((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => r())),
+    );
+    try {
+      const title = doc?.title?.trim() || '문서';
+      await exportArtboardToPdf(artboardRef.current, `${title}.pdf`);
+    } catch (e) {
+      setError(`PDF 내보내기에 실패했습니다: ${(e as Error).message}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const blocks = useMemo(() => doc?.blocks ?? [], [doc]);
 
   if (error) {
@@ -599,12 +624,28 @@ export function CanvasView({
           블록이 없습니다. 우측 패널에서 ‘+ 블록 추가’로 시작하세요.
         </div>
       ) : (
-        <div
-          ref={artboardRef}
-          className="relative mx-auto select-none bg-white shadow-md ring-1 ring-zinc-300"
-          style={{ width: PAGE_W, minHeight: PAGE_H }}
-          onPointerDown={onArtboardPointerDown}
-        >
+        <>
+          {/* 상단 도구막대: 화면 그대로 PDF 내보내기 */}
+          <div
+            className="sticky top-0 z-40 mx-auto mb-3 flex items-center justify-end"
+            style={{ width: PAGE_W }}
+          >
+            <button
+              onClick={handleExportPdf}
+              disabled={exporting}
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-zinc-700 disabled:opacity-50"
+            >
+              <FiDownload size={13} aria-hidden />
+              {exporting ? '내보내는 중…' : 'PDF (화면 그대로)'}
+            </button>
+          </div>
+
+          <div
+            ref={artboardRef}
+            className="relative mx-auto select-none bg-white shadow-md ring-1 ring-zinc-300"
+            style={{ width: PAGE_W, minHeight: PAGE_H }}
+            onPointerDown={onArtboardPointerDown}
+          >
           {/* 정렬 가이드 */}
           {guides.x.map((gx, i) => (
             <div
@@ -684,7 +725,8 @@ export function CanvasView({
               </div>
             );
           })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

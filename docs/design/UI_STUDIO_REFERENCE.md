@@ -114,7 +114,9 @@
   - **키보드**: Del/Backspace=선택 블록 삭제, ⌘·Ctrl+C·V=복사·붙여넣기(다중 선택 일괄, +24px 오프셋). 입력창/편집 모드 포커스 시엔 일반 텍스트 동작 유지.
   - **더블클릭=글자 편집 모드**(편집 중엔 이동/리사이즈 비활성, Esc·바깥 클릭으로 종료). 본문은 `BlockContentEditor` 재사용.
   - 좌표/크기는 `DocumentBlock.metadata.canvas = { x, y, w, h }`에 저장(별도 마이그레이션 없음). 좌표가 없는 블록은 결정적 세로 스택으로 자동 배치.
-- 두 모드는 동일한 블록 데이터를 공유한다. 흐름형 내보내기(MD/DOCX)는 `sortOrder` 기준을 유지하고, **PDF는 캔버스 화면 그대로(페이지 렌더)** 출력하는 것을 목표로 한다(렌더 파이프라인은 후속 작업).
+- 두 모드는 동일한 블록 데이터를 공유한다. 흐름형 내보내기(MD/DOCX)는 `sortOrder` 기준(서버 `@archi/export`)을 유지한다.
+- **PDF 화면 그대로 내보내기**: 캔버스 상단의 `PDF (화면 그대로)` 버튼 → 아트보드 DOM을 클라이언트에서 캡처해 A4 PDF로 저장. 차트·표·체크리스트·이미지까지 화면과 동일하게 출력된다.
+  - 구현: `apps/web/lib/client/export-canvas.ts` (`html-to-image`의 `toJpeg` + `jspdf`). 캡처 전 선택/핸들/가이드를 비워 PDF에 안 들어가게 한다. 아트보드가 A4보다 길면 여러 페이지로 분할.
 - 구현: `apps/web/components/editor/CanvasView.tsx`, 토글은 `app/studio/[documentId]/page.tsx`.
 
 ### 5.2 본문 구성(위→아래)
