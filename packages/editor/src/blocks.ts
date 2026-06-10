@@ -24,6 +24,18 @@ export const BlockTypes = {
   COST_TABLE: 'cost_table',
   CONSTRUCTION_DETAIL: 'construction_detail',
   CONTAINER: 'container',
+  RICH_TEXT: 'rich_text',
+  IMAGE_GALLERY: 'image_gallery',
+  BEFORE_AFTER: 'before_after',
+  DIAGRAM: 'diagram',
+  CONSTRUCTION_STANDARD: 'construction_standard',
+  MATERIAL_SPEC: 'material_spec',
+  SCHEDULE: 'schedule',
+  RISK_WARNING: 'risk_warning',
+  SEO_META: 'seo_meta',
+  BLOG_SECTION: 'blog_section',
+  TECHNICAL_SECTION: 'technical_section',
+  ONTOLOGY_SUMMARY: 'ontology_summary',
 } as const;
 
 export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
@@ -192,6 +204,90 @@ export const containerContentSchema = z.object({
   collapsed: z.boolean().optional(),
 });
 
+/** 리치 텍스트(마크다운 허용 본문) */
+export const richTextContentSchema = z.object({
+  text: z.string(),
+  format: z.enum(['markdown', 'plain']).default('markdown'),
+});
+
+/** 이미지 갤러리: 여러 장 */
+export const imageGalleryContentSchema = z.object({
+  title: z.string().optional(),
+  images: z
+    .array(z.object({ url: z.string().optional(), caption: z.string().optional(), prompt: z.string().optional() }))
+    .default([]),
+});
+
+/** 시공 전/후 비교 */
+export const beforeAfterContentSchema = z.object({
+  title: z.string().optional(),
+  before: z.object({ url: z.string().optional(), label: z.string().default('시공 전'), prompt: z.string().optional() }),
+  after: z.object({ url: z.string().optional(), label: z.string().default('시공 후'), prompt: z.string().optional() }),
+});
+
+/** 다이어그램: 텍스트 소스(mermaid 등) + 선택 이미지 */
+export const diagramContentSchema = z.object({
+  title: z.string().optional(),
+  source: z.string().default(''),
+  imageUrl: z.string().optional(),
+});
+
+/** 시공 표준(기준서 조항) */
+export const constructionStandardContentSchema = z.object({
+  title: z.string().optional(),
+  standardCode: z.string().optional(),
+  clauses: z.array(z.object({ no: z.string().optional(), text: z.string() })).default([]),
+});
+
+/** 자재 사양서(키-값) */
+export const materialSpecContentSchema = z.object({
+  material: z.string().default(''),
+  specs: z.array(z.object({ key: z.string(), value: z.string() })).default([]),
+});
+
+/** 공정 일정 */
+export const scheduleContentSchema = z.object({
+  title: z.string().optional(),
+  items: z
+    .array(z.object({ task: z.string(), start: z.string().optional(), end: z.string().optional(), owner: z.string().optional() }))
+    .default([]),
+});
+
+/** 위험 경고(심각도 + 위험 + 대응) */
+export const riskWarningContentSchema = z.object({
+  severity: z.enum(['low', 'medium', 'high']).default('medium'),
+  title: z.string().optional(),
+  risk: z.string(),
+  mitigation: z.string().optional(),
+});
+
+/** SEO 메타 */
+export const seoMetaContentSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  keywords: z.array(z.string()).default([]),
+  slug: z.string().optional(),
+});
+
+/** 블로그 섹션(제목 + 본문) */
+export const blogSectionContentSchema = z.object({
+  heading: z.string().default(''),
+  body: z.string().default(''),
+});
+
+/** 기술 섹션(제목 + 본문 + 참고) */
+export const technicalSectionContentSchema = z.object({
+  heading: z.string().default(''),
+  body: z.string().default(''),
+  references: z.array(z.string()).default([]),
+});
+
+/** 온톨로지 요약(관련 지식 노드 라벨 목록) */
+export const ontologySummaryContentSchema = z.object({
+  title: z.string().default('관련 지식'),
+  nodes: z.array(z.string()).default([]),
+});
+
 export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   heading: headingContentSchema,
   paragraph: paragraphContentSchema,
@@ -211,6 +307,18 @@ export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   cost_table: costTableContentSchema,
   construction_detail: constructionDetailContentSchema,
   container: containerContentSchema,
+  rich_text: richTextContentSchema,
+  image_gallery: imageGalleryContentSchema,
+  before_after: beforeAfterContentSchema,
+  diagram: diagramContentSchema,
+  construction_standard: constructionStandardContentSchema,
+  material_spec: materialSpecContentSchema,
+  schedule: scheduleContentSchema,
+  risk_warning: riskWarningContentSchema,
+  seo_meta: seoMetaContentSchema,
+  blog_section: blogSectionContentSchema,
+  technical_section: technicalSectionContentSchema,
+  ontology_summary: ontologySummaryContentSchema,
 };
 
 export const blockTypeSchema = z.enum([
@@ -232,6 +340,18 @@ export const blockTypeSchema = z.enum([
   'cost_table',
   'construction_detail',
   'container',
+  'rich_text',
+  'image_gallery',
+  'before_after',
+  'diagram',
+  'construction_standard',
+  'material_spec',
+  'schedule',
+  'risk_warning',
+  'seo_meta',
+  'blog_section',
+  'technical_section',
+  'ontology_summary',
 ]);
 
 export const blockInputSchema = z
@@ -273,6 +393,18 @@ export type CodeContent = z.infer<typeof codeContentSchema>;
 export type CostTableContent = z.infer<typeof costTableContentSchema>;
 export type ConstructionDetailContent = z.infer<typeof constructionDetailContentSchema>;
 export type ContainerContent = z.infer<typeof containerContentSchema>;
+export type RichTextContent = z.infer<typeof richTextContentSchema>;
+export type ImageGalleryContent = z.infer<typeof imageGalleryContentSchema>;
+export type BeforeAfterContent = z.infer<typeof beforeAfterContentSchema>;
+export type DiagramContent = z.infer<typeof diagramContentSchema>;
+export type ConstructionStandardContent = z.infer<typeof constructionStandardContentSchema>;
+export type MaterialSpecContent = z.infer<typeof materialSpecContentSchema>;
+export type ScheduleContent = z.infer<typeof scheduleContentSchema>;
+export type RiskWarningContent = z.infer<typeof riskWarningContentSchema>;
+export type SeoMetaContent = z.infer<typeof seoMetaContentSchema>;
+export type BlogSectionContent = z.infer<typeof blogSectionContentSchema>;
+export type TechnicalSectionContent = z.infer<typeof technicalSectionContentSchema>;
+export type OntologySummaryContent = z.infer<typeof ontologySummaryContentSchema>;
 
 /** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
 export function parseBlockContent(type: string, content: unknown) {

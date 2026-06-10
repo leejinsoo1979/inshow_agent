@@ -3,21 +3,35 @@ import fontkit from '@pdf-lib/fontkit';
 import {
   CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  beforeAfterData,
+  blogSectionData,
   calloutData,
   chartData,
   checklistItems,
   codeData,
   collectSources,
   constructionDetailData,
+  constructionStandardData,
+  constructionStandardHeading,
   costTableData,
+  diagramData,
   docMetaEntries,
   formulaData,
+  imageGalleryData,
   lawReferenceData,
   lawReferenceHeading,
+  materialSpecData,
+  ontologySummaryData,
   qnaItems,
   quoteData,
+  richTextData,
+  riskWarningData,
   safeFilename,
+  scheduleData,
+  seoMetaData,
+  seoMetaEntries,
   tableData,
+  technicalSectionData,
   type DocumentForExport,
   type Exporter,
   type ExportOptions,
@@ -255,6 +269,152 @@ export class PdfExporter implements Exporter {
         case 'container': {
           if (c.title) {
             writer.writeText(String(c.title), { size: 14, gapBefore: 10, gapAfter: 6 });
+          }
+          break;
+        }
+        case 'rich_text': {
+          const rich = richTextData(block.content);
+          writer.writeText(rich.text, { gapAfter: 8 });
+          break;
+        }
+        case 'image_gallery': {
+          const gallery = imageGalleryData(block.content);
+          writer.writeText(`[갤러리${gallery.title ? `: ${gallery.title}` : ''}]`, {
+            size: 12,
+            gapBefore: 6,
+            gapAfter: 4,
+            color: rgb(0.45, 0.45, 0.5),
+          });
+          for (const img of gallery.images) {
+            const caption = img.caption || img.prompt;
+            writer.writeText(`[이미지${caption ? `: ${caption}` : ''}]`, {
+              gapAfter: 2,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'before_after': {
+          const ba = beforeAfterData(block.content);
+          if (ba.title) writer.writeText(ba.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          for (const side of [ba.before, ba.after]) {
+            writer.writeText(`[${side.label}${side.prompt ? `: ${side.prompt}` : ''}]`, {
+              gapAfter: 2,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'diagram': {
+          const diagram = diagramData(block.content);
+          if (diagram.title) {
+            writer.writeText(diagram.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          }
+          if (diagram.imageUrl) {
+            writer.writeText('[다이어그램]', { gapAfter: 4, color: rgb(0.45, 0.45, 0.5) });
+          } else if (diagram.source) {
+            for (const line of diagram.source.split('\n')) {
+              writer.writeText(line, { gapAfter: 1, color: rgb(0.2, 0.2, 0.25) });
+            }
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'construction_standard': {
+          const std = constructionStandardData(block.content);
+          writer.writeText(constructionStandardHeading(std), {
+            size: 12,
+            gapBefore: 6,
+            gapAfter: 4,
+          });
+          std.clauses.forEach((cl, i) => {
+            writer.writeText(`${cl.no ?? String(i + 1)}. ${cl.text}`, { gapAfter: 2 });
+          });
+          writer.gap(4);
+          break;
+        }
+        case 'material_spec': {
+          const spec = materialSpecData(block.content);
+          writer.writeText(`자재: ${spec.material}`, { size: 12, gapBefore: 6, gapAfter: 4 });
+          writer.writeText(spec.headers.join('  |  '), { gapAfter: 2 });
+          for (const row of spec.rows) {
+            writer.writeText(spec.headers.map((_, i) => row[i] ?? '').join('  |  '), {
+              gapAfter: 2,
+              color: rgb(0.25, 0.25, 0.28),
+            });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'schedule': {
+          const sched = scheduleData(block.content);
+          if (sched.title) writer.writeText(sched.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          writer.writeText(sched.headers.join('  |  '), { gapAfter: 2 });
+          for (const row of sched.rows) {
+            writer.writeText(sched.headers.map((_, i) => row[i] ?? '').join('  |  '), {
+              gapAfter: 2,
+              color: rgb(0.25, 0.25, 0.28),
+            });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'risk_warning': {
+          const risk = riskWarningData(block.content);
+          writer.writeText(`⚠ [위험-${risk.severityLabel}]${risk.title ? ` ${risk.title}` : ''}`, {
+            size: 12,
+            gapBefore: 6,
+            gapAfter: 2,
+          });
+          writer.writeText(risk.risk, { gapAfter: 2, color: rgb(0.25, 0.25, 0.28) });
+          if (risk.mitigation) {
+            writer.writeText(`대응: ${risk.mitigation}`, {
+              gapAfter: 8,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          } else {
+            writer.gap(6);
+          }
+          break;
+        }
+        case 'seo_meta': {
+          const entries = seoMetaEntries(seoMetaData(block.content));
+          if (entries.length === 0) break;
+          writer.writeText(entries.map(([k, v]) => `${k}: ${v}`).join('  /  '), {
+            gapAfter: 8,
+            color: rgb(0.4, 0.4, 0.45),
+          });
+          break;
+        }
+        case 'blog_section': {
+          const sec = blogSectionData(block.content);
+          if (sec.heading) writer.writeText(sec.heading, { size: 14, gapBefore: 8, gapAfter: 6 });
+          if (sec.body) writer.writeText(sec.body, { gapAfter: 8 });
+          break;
+        }
+        case 'technical_section': {
+          const sec = technicalSectionData(block.content);
+          if (sec.heading) writer.writeText(sec.heading, { size: 14, gapBefore: 8, gapAfter: 6 });
+          if (sec.body) writer.writeText(sec.body, { gapAfter: 4 });
+          if (sec.references.length > 0) {
+            writer.writeText('참고', { size: 12, gapBefore: 4, gapAfter: 2 });
+            for (const ref of sec.references) {
+              writer.writeText(`· ${ref}`, { gapAfter: 2, color: rgb(0.35, 0.35, 0.4) });
+            }
+          }
+          writer.gap(4);
+          break;
+        }
+        case 'ontology_summary': {
+          const onto = ontologySummaryData(block.content);
+          if (onto.title) writer.writeText(onto.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          if (onto.nodes.length > 0) {
+            writer.writeText(`관련 지식: ${onto.nodes.join(', ')}`, {
+              gapAfter: 6,
+              color: rgb(0.3, 0.3, 0.35),
+            });
           }
           break;
         }

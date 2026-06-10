@@ -36,6 +36,18 @@ const TYPE_LABELS: Record<string, string> = {
   cost_table: '견적표',
   construction_detail: '시공상세',
   container: '컨테이너',
+  rich_text: '서식 텍스트',
+  image_gallery: '갤러리',
+  before_after: '전/후 비교',
+  diagram: '다이어그램',
+  construction_standard: '시공기준',
+  material_spec: '자재사양',
+  schedule: '공정표',
+  risk_warning: '위험경고',
+  seo_meta: 'SEO',
+  blog_section: '블로그섹션',
+  technical_section: '기술섹션',
+  ontology_summary: '지식요약',
 };
 
 /** 캔버스 좌표가 아직 없는 블록을 세로로 쌓는 기본 높이(타입별) */
@@ -58,6 +70,18 @@ const DEFAULT_H: Record<string, number> = {
   cost_table: 240,
   construction_detail: 280,
   container: 80,
+  rich_text: 140,
+  image_gallery: 240,
+  before_after: 240,
+  diagram: 200,
+  construction_standard: 200,
+  material_spec: 180,
+  schedule: 200,
+  risk_warning: 140,
+  seo_meta: 160,
+  blog_section: 180,
+  technical_section: 200,
+  ontology_summary: 140,
 };
 
 /** 8방향 리사이즈 핸들 정의: 위치/커서 */

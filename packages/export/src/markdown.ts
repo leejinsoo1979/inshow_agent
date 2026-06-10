@@ -2,21 +2,35 @@ import { safeUrlOrEmpty } from '@archi/security';
 import {
   CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  beforeAfterData,
+  blogSectionData,
   calloutData,
   chartData,
   checklistItems,
   codeData,
   collectSources,
   constructionDetailData,
+  constructionStandardData,
+  constructionStandardHeading,
   costTableData,
+  diagramData,
   docMetaEntries,
   formulaData,
+  imageGalleryData,
   lawReferenceData,
   lawReferenceHeading,
+  materialSpecData,
+  ontologySummaryData,
   qnaItems,
   quoteData,
+  richTextData,
+  riskWarningData,
   safeFilename,
+  scheduleData,
+  seoMetaData,
+  seoMetaEntries,
   tableData,
+  technicalSectionData,
   type DocumentForExport,
   type Exporter,
   type ExportResult,
@@ -179,6 +193,119 @@ export class MarkdownExporter implements Exporter {
         }
         case 'container': {
           if (c.title) lines.push(`## ${c.title}`, '');
+          break;
+        }
+        case 'rich_text': {
+          const rich = richTextData(block.content);
+          lines.push(rich.text, '');
+          break;
+        }
+        case 'image_gallery': {
+          const gallery = imageGalleryData(block.content);
+          if (gallery.title) lines.push(`### ${gallery.title}`, '');
+          for (const img of gallery.images) {
+            if (img.url) {
+              lines.push(`![${img.caption ?? '이미지'}](${safeUrlOrEmpty(img.url)})`, '');
+              if (img.caption) lines.push(`*${img.caption}*`, '');
+            } else {
+              lines.push(`[이미지: ${img.caption || img.prompt || ''}]`, '');
+            }
+          }
+          break;
+        }
+        case 'before_after': {
+          const ba = beforeAfterData(block.content);
+          if (ba.title) lines.push(`### ${ba.title}`, '');
+          for (const side of [ba.before, ba.after]) {
+            lines.push(`**${side.label}**`, '');
+            if (side.url) {
+              lines.push(`![${side.label}](${safeUrlOrEmpty(side.url)})`, '');
+            } else {
+              lines.push(`[이미지: ${side.prompt || side.label}]`, '');
+            }
+          }
+          break;
+        }
+        case 'diagram': {
+          const diagram = diagramData(block.content);
+          if (diagram.title) lines.push(`### ${diagram.title}`, '');
+          if (diagram.imageUrl) {
+            lines.push(`![${diagram.title ?? '다이어그램'}](${safeUrlOrEmpty(diagram.imageUrl)})`, '');
+          } else if (diagram.source) {
+            lines.push('```', diagram.source, '```', '');
+          }
+          break;
+        }
+        case 'construction_standard': {
+          const std = constructionStandardData(block.content);
+          lines.push(`### ${constructionStandardHeading(std)}`, '');
+          std.clauses.forEach((cl, i) => {
+            lines.push(`${cl.no ?? String(i + 1)}. ${cl.text}`);
+          });
+          if (std.clauses.length > 0) lines.push('');
+          break;
+        }
+        case 'material_spec': {
+          const spec = materialSpecData(block.content);
+          lines.push(`**자재: ${spec.material}**`, '');
+          lines.push(`| ${spec.headers.join(' | ')} |`);
+          lines.push(`| ${spec.headers.map(() => '---').join(' | ')} |`);
+          for (const row of spec.rows) {
+            lines.push(`| ${spec.headers.map((_, i) => row[i] ?? '').join(' | ')} |`);
+          }
+          lines.push('');
+          break;
+        }
+        case 'schedule': {
+          const sched = scheduleData(block.content);
+          if (sched.title) lines.push(`**${sched.title}**`, '');
+          lines.push(`| ${sched.headers.join(' | ')} |`);
+          lines.push(`| ${sched.headers.map(() => '---').join(' | ')} |`);
+          for (const row of sched.rows) {
+            lines.push(`| ${sched.headers.map((_, i) => row[i] ?? '').join(' | ')} |`);
+          }
+          lines.push('');
+          break;
+        }
+        case 'risk_warning': {
+          const risk = riskWarningData(block.content);
+          lines.push(
+            `> ⚠ [위험-${risk.severityLabel}]${risk.title ? ` ${risk.title}` : ''}`,
+            `> ${risk.risk}`,
+          );
+          if (risk.mitigation) lines.push('>', `> 대응: ${risk.mitigation}`);
+          lines.push('');
+          break;
+        }
+        case 'seo_meta': {
+          const entries = seoMetaEntries(seoMetaData(block.content));
+          if (entries.length === 0) break;
+          lines.push(`> ${entries.map(([k, v]) => `**${k}** ${v}`).join(' · ')}`, '');
+          break;
+        }
+        case 'blog_section': {
+          const sec = blogSectionData(block.content);
+          if (sec.heading) lines.push(`## ${sec.heading}`, '');
+          if (sec.body) lines.push(sec.body, '');
+          break;
+        }
+        case 'technical_section': {
+          const sec = technicalSectionData(block.content);
+          if (sec.heading) lines.push(`## ${sec.heading}`, '');
+          if (sec.body) lines.push(sec.body, '');
+          if (sec.references.length > 0) {
+            lines.push('**참고**', '');
+            for (const ref of sec.references) lines.push(`- ${ref}`);
+            lines.push('');
+          }
+          break;
+        }
+        case 'ontology_summary': {
+          const onto = ontologySummaryData(block.content);
+          if (onto.title) lines.push(`### ${onto.title}`, '');
+          if (onto.nodes.length > 0) {
+            lines.push(`관련 지식: ${onto.nodes.join(', ')}`, '');
+          }
           break;
         }
         default:

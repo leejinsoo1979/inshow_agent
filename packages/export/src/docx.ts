@@ -14,21 +14,35 @@ import {
 import {
   CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  beforeAfterData,
+  blogSectionData,
   calloutData,
   chartData,
   checklistItems,
   codeData,
   collectSources,
   constructionDetailData,
+  constructionStandardData,
+  constructionStandardHeading,
   costTableData,
+  diagramData,
   docMetaEntries,
   formulaData,
+  imageGalleryData,
   lawReferenceData,
   lawReferenceHeading,
+  materialSpecData,
+  ontologySummaryData,
   qnaItems,
   quoteData,
+  richTextData,
+  riskWarningData,
   safeFilename,
+  scheduleData,
+  seoMetaData,
+  seoMetaEntries,
   tableData,
+  technicalSectionData,
   type DocumentForExport,
   type Exporter,
   type ExportResult,
@@ -358,6 +372,234 @@ export class DocxExporter implements Exporter {
               new Paragraph({
                 heading: HeadingLevel.HEADING_2,
                 children: [new TextRun(String(c.title))],
+              }),
+            );
+          }
+          break;
+        }
+        case 'rich_text': {
+          const rich = richTextData(block.content);
+          children.push(
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [new TextRun(rich.text)],
+            }),
+          );
+          break;
+        }
+        case 'image_gallery': {
+          const gallery = imageGalleryData(block.content);
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `[갤러리${gallery.title ? `: ${gallery.title}` : ''}]`,
+                  bold: true,
+                }),
+              ],
+            }),
+          );
+          for (const img of gallery.images) {
+            const caption = img.caption || img.prompt;
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `[이미지${caption ? `: ${caption}` : ''}]`,
+                    italics: true,
+                    color: '71717a',
+                  }),
+                ],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'before_after': {
+          const ba = beforeAfterData(block.content);
+          if (ba.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: ba.title, bold: true })] }),
+            );
+          }
+          for (const side of [ba.before, ba.after]) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `[${side.label}${side.prompt ? `: ${side.prompt}` : ''}]`,
+                    italics: true,
+                    color: '71717a',
+                  }),
+                ],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'diagram': {
+          const diagram = diagramData(block.content);
+          if (diagram.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: diagram.title, bold: true })] }),
+            );
+          }
+          if (diagram.imageUrl) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: '[다이어그램]', italics: true, color: '71717a' })],
+              }),
+            );
+          } else if (diagram.source) {
+            for (const line of diagram.source.split('\n')) {
+              children.push(
+                new Paragraph({
+                  children: [new TextRun({ text: line, font: 'Courier New' })],
+                }),
+              );
+            }
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'construction_standard': {
+          const std = constructionStandardData(block.content);
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: constructionStandardHeading(std), bold: true })],
+            }),
+          );
+          std.clauses.forEach((cl, i) => {
+            children.push(
+              new Paragraph({
+                children: [new TextRun(`${cl.no ?? String(i + 1)}. ${cl.text}`)],
+              }),
+            );
+          });
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'material_spec': {
+          const spec = materialSpecData(block.content);
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `자재: ${spec.material}`, bold: true })],
+            }),
+          );
+          children.push(buildDocxTable(spec.headers, spec.rows));
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'schedule': {
+          const sched = scheduleData(block.content);
+          if (sched.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: sched.title, bold: true })] }),
+            );
+          }
+          children.push(buildDocxTable(sched.headers, sched.rows));
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'risk_warning': {
+          const risk = riskWarningData(block.content);
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `⚠ [위험-${risk.severityLabel}]${risk.title ? ` ${risk.title}` : ''}`,
+                  bold: true,
+                }),
+              ],
+            }),
+          );
+          children.push(new Paragraph({ children: [new TextRun(risk.risk)] }));
+          if (risk.mitigation) {
+            children.push(
+              new Paragraph({
+                spacing: { after: 160 },
+                children: [new TextRun({ text: `대응: ${risk.mitigation}`, color: '71717a' })],
+              }),
+            );
+          } else {
+            children.push(new Paragraph({ children: [] }));
+          }
+          break;
+        }
+        case 'seo_meta': {
+          const entries = seoMetaEntries(seoMetaData(block.content));
+          if (entries.length === 0) break;
+          children.push(
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [
+                new TextRun({
+                  text: entries.map(([k, v]) => `${k}: ${v}`).join('  /  '),
+                  color: '52525b',
+                  size: 18,
+                }),
+              ],
+            }),
+          );
+          break;
+        }
+        case 'blog_section': {
+          const sec = blogSectionData(block.content);
+          if (sec.heading) {
+            children.push(
+              new Paragraph({
+                heading: HeadingLevel.HEADING_3,
+                children: [new TextRun(sec.heading)],
+              }),
+            );
+          }
+          if (sec.body) {
+            children.push(
+              new Paragraph({ spacing: { after: 160 }, children: [new TextRun(sec.body)] }),
+            );
+          }
+          break;
+        }
+        case 'technical_section': {
+          const sec = technicalSectionData(block.content);
+          if (sec.heading) {
+            children.push(
+              new Paragraph({
+                heading: HeadingLevel.HEADING_3,
+                children: [new TextRun(sec.heading)],
+              }),
+            );
+          }
+          if (sec.body) {
+            children.push(
+              new Paragraph({ spacing: { after: 160 }, children: [new TextRun(sec.body)] }),
+            );
+          }
+          if (sec.references.length > 0) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: '참고', bold: true })] }),
+            );
+            for (const ref of sec.references) {
+              children.push(new Paragraph({ children: [new TextRun(`· ${ref}`)] }));
+            }
+            children.push(new Paragraph({ children: [] }));
+          }
+          break;
+        }
+        case 'ontology_summary': {
+          const onto = ontologySummaryData(block.content);
+          if (onto.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: onto.title, bold: true })] }),
+            );
+          }
+          if (onto.nodes.length > 0) {
+            children.push(
+              new Paragraph({
+                spacing: { after: 160 },
+                children: [new TextRun(`관련 지식: ${onto.nodes.join(', ')}`)],
               }),
             );
           }

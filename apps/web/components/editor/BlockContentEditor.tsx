@@ -1,24 +1,36 @@
 'use client';
 
 import type {
+  BeforeAfterContent,
+  BlogSectionContent,
   CalloutContent,
   ChartContent,
   ChecklistContent,
   CodeContent,
   ConstructionDetailContent,
+  ConstructionStandardContent,
   ContainerContent,
   CostTableContent,
   CtaContent,
+  DiagramContent,
   DocMetaContent,
   FormulaContent,
   HeadingContent,
   ImageContent,
+  ImageGalleryContent,
   LawReferenceContent,
+  MaterialSpecContent,
+  OntologySummaryContent,
   ParagraphContent,
   QnaContent,
   QuoteContent,
+  RichTextContent,
+  RiskWarningContent,
+  ScheduleContent,
+  SeoMetaContent,
   SourceReferenceContent,
   TableContent,
+  TechnicalSectionContent,
 } from '@archi/editor';
 import { ChartView } from './ChartView';
 
@@ -351,6 +363,290 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
     case 'construction_detail': {
       const c = content as unknown as ConstructionDetailContent;
       return <ConstructionDetailBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'rich_text': {
+      const c = content as unknown as RichTextContent;
+      return (
+        <div className="flex flex-col gap-1.5">
+          <select
+            value={c.format}
+            onChange={(e) => onChange({ ...c, format: e.target.value })}
+            className="w-32 rounded border border-zinc-200 px-1 py-0.5 text-xs text-zinc-500"
+          >
+            <option value="markdown">마크다운</option>
+            <option value="plain">일반 텍스트</option>
+          </select>
+          <textarea
+            value={c.text}
+            placeholder="내용을 입력하세요"
+            rows={Math.max(3, Math.ceil((c.text?.length ?? 0) / 60))}
+            onChange={(e) => onChange({ ...c, text: e.target.value })}
+            className="w-full resize-none bg-transparent leading-7 outline-none"
+          />
+        </div>
+      );
+    }
+    case 'image_gallery': {
+      const c = content as unknown as ImageGalleryContent;
+      return <ImageGalleryBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'before_after': {
+      const c = content as unknown as BeforeAfterContent;
+      return (
+        <div className="flex flex-col gap-2">
+          <input
+            value={c.title ?? ''}
+            placeholder="비교 제목 (예: 거실 리모델링 전후)"
+            onChange={(e) => onChange({ ...c, title: e.target.value })}
+            className="font-semibold outline-none"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-200 p-2">
+              <input
+                value={c.before.label}
+                placeholder="시공 전"
+                onChange={(e) => onChange({ ...c, before: { ...c.before, label: e.target.value } })}
+                className="bg-transparent text-sm font-semibold outline-none"
+              />
+              {c.before.url ? (
+                <img src={c.before.url} alt={c.before.label} className="max-h-48 rounded" />
+              ) : null}
+              <input
+                value={c.before.url ?? ''}
+                placeholder="이미지 URL"
+                onChange={(e) => onChange({ ...c, before: { ...c.before, url: e.target.value } })}
+                className="rounded border border-zinc-200 px-2 py-1 text-xs"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-200 p-2">
+              <input
+                value={c.after.label}
+                placeholder="시공 후"
+                onChange={(e) => onChange({ ...c, after: { ...c.after, label: e.target.value } })}
+                className="bg-transparent text-sm font-semibold outline-none"
+              />
+              {c.after.url ? (
+                <img src={c.after.url} alt={c.after.label} className="max-h-48 rounded" />
+              ) : null}
+              <input
+                value={c.after.url ?? ''}
+                placeholder="이미지 URL"
+                onChange={(e) => onChange({ ...c, after: { ...c.after, url: e.target.value } })}
+                className="rounded border border-zinc-200 px-2 py-1 text-xs"
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    case 'diagram': {
+      const c = content as unknown as DiagramContent;
+      return (
+        <div className="flex flex-col gap-1.5">
+          <input
+            value={c.title ?? ''}
+            placeholder="다이어그램 제목"
+            onChange={(e) => onChange({ ...c, title: e.target.value })}
+            className="font-semibold outline-none"
+          />
+          <textarea
+            value={c.source}
+            placeholder="다이어그램 소스 (mermaid 등)"
+            rows={4}
+            spellCheck={false}
+            onChange={(e) => onChange({ ...c, source: e.target.value })}
+            className="rounded-md bg-zinc-900 px-3 py-2 font-mono text-sm text-zinc-100 outline-none"
+          />
+          {c.imageUrl ? (
+            <img src={c.imageUrl} alt={c.title ?? '다이어그램'} className="max-h-60 rounded-lg" />
+          ) : null}
+          <input
+            value={c.imageUrl ?? ''}
+            placeholder="다이어그램 이미지 URL (선택)"
+            onChange={(e) => onChange({ ...c, imageUrl: e.target.value })}
+            className="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-500"
+          />
+        </div>
+      );
+    }
+    case 'construction_standard': {
+      const c = content as unknown as ConstructionStandardContent;
+      return <ConstructionStandardBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'material_spec': {
+      const c = content as unknown as MaterialSpecContent;
+      return <MaterialSpecBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'schedule': {
+      const c = content as unknown as ScheduleContent;
+      return <ScheduleBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'risk_warning': {
+      const c = content as unknown as RiskWarningContent;
+      return (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 p-3">
+          <div className="flex items-center gap-2">
+            <select
+              value={c.severity}
+              onChange={(e) => onChange({ ...c, severity: e.target.value })}
+              className="rounded border border-zinc-200 px-1 py-0.5 text-xs"
+            >
+              <option value="low">낮음</option>
+              <option value="medium">보통</option>
+              <option value="high">높음</option>
+            </select>
+            <input
+              value={c.title ?? ''}
+              placeholder="제목 (선택)"
+              onChange={(e) => onChange({ ...c, title: e.target.value })}
+              className="flex-1 bg-transparent font-semibold outline-none"
+            />
+          </div>
+          <textarea
+            value={c.risk}
+            placeholder="위험 요소"
+            rows={2}
+            onChange={(e) => onChange({ ...c, risk: e.target.value })}
+            className="resize-none bg-transparent text-sm outline-none"
+          />
+          <textarea
+            value={c.mitigation ?? ''}
+            placeholder="대응 방안 (선택)"
+            rows={2}
+            onChange={(e) => onChange({ ...c, mitigation: e.target.value })}
+            className="resize-none bg-transparent text-sm text-zinc-600 outline-none"
+          />
+        </div>
+      );
+    }
+    case 'seo_meta': {
+      const c = content as unknown as SeoMetaContent;
+      return (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <input
+            value={c.title ?? ''}
+            placeholder="SEO 제목"
+            onChange={(e) => onChange({ ...c, title: e.target.value })}
+            className="bg-transparent font-semibold outline-none"
+          />
+          <textarea
+            value={c.description ?? ''}
+            placeholder="메타 설명"
+            rows={2}
+            onChange={(e) => onChange({ ...c, description: e.target.value })}
+            className="resize-none rounded border border-zinc-200 bg-white px-2 py-1 text-sm outline-none"
+          />
+          <input
+            value={(c.keywords ?? []).join(', ')}
+            placeholder="키워드 (쉼표 구분)"
+            onChange={(e) =>
+              onChange({
+                ...c,
+                keywords: e.target.value.split(',').map((k) => k.trim()).filter(Boolean),
+              })
+            }
+            className="rounded border border-zinc-200 bg-white px-2 py-1 text-sm"
+          />
+          <input
+            value={c.slug ?? ''}
+            placeholder="슬러그 (예: insulation-guide)"
+            onChange={(e) => onChange({ ...c, slug: e.target.value })}
+            className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-500"
+          />
+        </div>
+      );
+    }
+    case 'blog_section': {
+      const c = content as unknown as BlogSectionContent;
+      return (
+        <div className="flex flex-col gap-1.5">
+          <input
+            value={c.heading}
+            placeholder="섹션 제목"
+            onChange={(e) => onChange({ ...c, heading: e.target.value })}
+            className="bg-transparent text-lg font-bold outline-none"
+          />
+          <textarea
+            value={c.body}
+            placeholder="본문을 입력하세요"
+            rows={Math.max(3, Math.ceil((c.body?.length ?? 0) / 60))}
+            onChange={(e) => onChange({ ...c, body: e.target.value })}
+            className="w-full resize-none bg-transparent leading-7 outline-none"
+          />
+        </div>
+      );
+    }
+    case 'technical_section': {
+      const c = content as unknown as TechnicalSectionContent;
+      return (
+        <div className="flex flex-col gap-1.5">
+          <input
+            value={c.heading}
+            placeholder="기술 섹션 제목"
+            onChange={(e) => onChange({ ...c, heading: e.target.value })}
+            className="bg-transparent text-lg font-bold outline-none"
+          />
+          <textarea
+            value={c.body}
+            placeholder="본문을 입력하세요"
+            rows={Math.max(3, Math.ceil((c.body?.length ?? 0) / 60))}
+            onChange={(e) => onChange({ ...c, body: e.target.value })}
+            className="w-full resize-none bg-transparent leading-7 outline-none"
+          />
+          <label className="flex flex-col gap-1 text-xs text-zinc-500">
+            참고 자료 (한 줄에 하나)
+            <textarea
+              value={(c.references ?? []).join('\n')}
+              placeholder={'예: KS F 2803\n건축물 에너지절약설계기준'}
+              rows={3}
+              onChange={(e) =>
+                onChange({
+                  ...c,
+                  references: e.target.value.split('\n').map((r) => r.trim()).filter(Boolean),
+                })
+              }
+              className="resize-none rounded border border-zinc-200 px-2 py-1 text-sm text-zinc-900"
+            />
+          </label>
+        </div>
+      );
+    }
+    case 'ontology_summary': {
+      const c = content as unknown as OntologySummaryContent;
+      const nodes = c.nodes ?? [];
+      return (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+          <input
+            value={c.title}
+            placeholder="관련 지식"
+            onChange={(e) => onChange({ ...c, title: e.target.value })}
+            className="bg-transparent font-semibold outline-none"
+          />
+          {nodes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {nodes.map((node, i) => (
+                <span
+                  key={i}
+                  className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-700"
+                >
+                  {node}
+                </span>
+              ))}
+            </div>
+          )}
+          <input
+            value={nodes.join(', ')}
+            placeholder="노드 (쉼표 구분)"
+            onChange={(e) =>
+              onChange({
+                ...c,
+                nodes: e.target.value.split(',').map((n) => n.trim()).filter(Boolean),
+              })
+            }
+            className="rounded border border-zinc-200 bg-white px-2 py-1 text-sm"
+          />
+        </div>
+      );
     }
     default:
       return <p className="text-sm text-red-500">지원하지 않는 블록 타입: {type}</p>;
@@ -948,6 +1244,262 @@ function ConstructionDetailBlockEditor({
         onChange={(e) => onChange({ ...content, notes: e.target.value })}
         className="resize-none rounded bg-zinc-50 px-2 py-1 text-xs text-zinc-600 outline-none"
       />
+    </div>
+  );
+}
+
+/** 이미지 갤러리 편집: 제목 + 이미지(URL/캡션) 목록 */
+function ImageGalleryBlockEditor({
+  content,
+  onChange,
+}: {
+  content: ImageGalleryContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const images = content.images ?? [];
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={content.title ?? ''}
+        placeholder="갤러리 제목"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="font-semibold outline-none"
+      />
+      {images.map((img, i) => {
+        const update = (patch: Partial<typeof img>) =>
+          onChange({ ...content, images: images.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+        return (
+          <div key={i} className="flex items-start gap-2 rounded-lg border border-zinc-200 p-2">
+            {img.url ? (
+              <img src={img.url} alt={img.caption ?? '갤러리 이미지'} className="h-16 w-16 rounded object-cover" />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded bg-zinc-100 text-xs text-zinc-400">
+                미리보기
+              </div>
+            )}
+            <div className="flex flex-1 flex-col gap-1">
+              <input
+                value={img.url ?? ''}
+                placeholder="이미지 URL"
+                onChange={(e) => update({ url: e.target.value })}
+                className="rounded border border-zinc-200 px-2 py-1 text-sm"
+              />
+              <input
+                value={img.caption ?? ''}
+                placeholder="캡션"
+                onChange={(e) => update({ caption: e.target.value })}
+                className="rounded border border-zinc-200 px-2 py-1 text-sm text-zinc-600"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange({ ...content, images: images.filter((_, j) => j !== i) })}
+              className="text-xs text-zinc-400 hover:text-red-500"
+              aria-label="이미지 삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => onChange({ ...content, images: [...images, { url: '', caption: '' }] })}
+        className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        + 이미지 추가
+      </button>
+    </div>
+  );
+}
+
+/** 시공 표준 편집: 제목/기준 코드 + 번호 매겨진 조항 목록 */
+function ConstructionStandardBlockEditor({
+  content,
+  onChange,
+}: {
+  content: ConstructionStandardContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const clauses = content.clauses ?? [];
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+      <input
+        value={content.title ?? ''}
+        placeholder="기준 제목 (예: 표준시방서 단열공사)"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="bg-transparent font-semibold outline-none"
+      />
+      <input
+        value={content.standardCode ?? ''}
+        placeholder="기준 코드 (예: KCS 41 42 00)"
+        onChange={(e) => onChange({ ...content, standardCode: e.target.value })}
+        className="rounded border border-zinc-200 bg-white px-2 py-1 text-sm"
+      />
+      {clauses.map((clause, i) => {
+        const update = (patch: Partial<typeof clause>) =>
+          onChange({ ...content, clauses: clauses.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+        return (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <input
+              value={clause.no ?? ''}
+              placeholder="번호"
+              onChange={(e) => update({ no: e.target.value })}
+              className="w-16 rounded border border-zinc-200 bg-white px-2 py-1 text-xs"
+            />
+            <input
+              value={clause.text}
+              placeholder="조항 내용"
+              onChange={(e) => update({ text: e.target.value })}
+              className="flex-1 rounded border border-zinc-200 bg-white px-2 py-1"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ ...content, clauses: clauses.filter((_, j) => j !== i) })}
+              className="text-xs text-zinc-400 hover:text-red-500"
+              aria-label="조항 삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => onChange({ ...content, clauses: [...clauses, { no: '', text: '' }] })}
+        className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        + 조항 추가
+      </button>
+    </div>
+  );
+}
+
+/** 자재 사양서 편집: 자재명 + 키/값 항목 목록 */
+function MaterialSpecBlockEditor({
+  content,
+  onChange,
+}: {
+  content: MaterialSpecContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const specs = content.specs ?? [];
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+      <input
+        value={content.material}
+        placeholder="자재명 (예: 압출법 단열재 1호)"
+        onChange={(e) => onChange({ ...content, material: e.target.value })}
+        className="font-semibold outline-none"
+      />
+      {specs.map((spec, i) => {
+        const update = (patch: Partial<typeof spec>) =>
+          onChange({ ...content, specs: specs.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+        return (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <input
+              value={spec.key}
+              placeholder="항목 (예: 열전도율)"
+              onChange={(e) => update({ key: e.target.value })}
+              className="w-40 rounded border border-zinc-200 px-2 py-1"
+            />
+            <input
+              value={spec.value}
+              placeholder="값 (예: 0.027 W/mK)"
+              onChange={(e) => update({ value: e.target.value })}
+              className="flex-1 rounded border border-zinc-200 px-2 py-1"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ ...content, specs: specs.filter((_, j) => j !== i) })}
+              className="text-xs text-zinc-400 hover:text-red-500"
+              aria-label="항목 삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => onChange({ ...content, specs: [...specs, { key: '', value: '' }] })}
+        className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        + 항목 추가
+      </button>
+    </div>
+  );
+}
+
+/** 공정 일정 편집: 제목 + 공정/시작/종료/담당 표 */
+function ScheduleBlockEditor({
+  content,
+  onChange,
+}: {
+  content: ScheduleContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const items = content.items ?? [];
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={content.title ?? ''}
+        placeholder="공정 일정 제목 (예: 인테리어 공정표)"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="font-semibold outline-none"
+      />
+      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-zinc-900 text-left text-white">
+              <th className="px-3 py-1.5 font-semibold">공정</th>
+              <th className="px-3 py-1.5 font-semibold">시작</th>
+              <th className="px-3 py-1.5 font-semibold">종료</th>
+              <th className="px-3 py-1.5 font-semibold">담당</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => {
+              const update = (patch: Partial<typeof it>) =>
+                onChange({ ...content, items: items.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+              return (
+                <tr key={i} className={i % 2 === 1 ? 'bg-zinc-50' : ''}>
+                  <td className="border-t border-zinc-100 px-3 py-1.5">
+                    <input value={it.task} onChange={(e) => update({ task: e.target.value })} className="w-full bg-transparent outline-none" />
+                  </td>
+                  <td className="border-t border-zinc-100 px-3 py-1.5">
+                    <input value={it.start ?? ''} placeholder="2026-06-10" onChange={(e) => update({ start: e.target.value })} className="w-28 bg-transparent outline-none" />
+                  </td>
+                  <td className="border-t border-zinc-100 px-3 py-1.5">
+                    <input value={it.end ?? ''} placeholder="2026-06-15" onChange={(e) => update({ end: e.target.value })} className="w-28 bg-transparent outline-none" />
+                  </td>
+                  <td className="border-t border-zinc-100 px-3 py-1.5">
+                    <input value={it.owner ?? ''} onChange={(e) => update({ owner: e.target.value })} className="w-24 bg-transparent outline-none" />
+                  </td>
+                  <td className="border-t border-zinc-100 text-center">
+                    <button
+                      type="button"
+                      onClick={() => onChange({ ...content, items: items.filter((_, j) => j !== i) })}
+                      className="text-xs text-zinc-300 hover:text-red-500"
+                      aria-label="공정 삭제"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange({ ...content, items: [...items, { task: '', start: '', end: '', owner: '' }] })}
+        className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        + 공정 추가
+      </button>
     </div>
   );
 }

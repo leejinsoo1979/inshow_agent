@@ -80,6 +80,26 @@ const NEW_BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
     notes: '',
   },
   [BlockTypes.CONTAINER]: { title: '새 컨테이너', collapsed: false },
+  [BlockTypes.RICH_TEXT]: { text: '', format: 'markdown' },
+  [BlockTypes.IMAGE_GALLERY]: { title: '', images: [{ url: '', caption: '', prompt: '' }] },
+  [BlockTypes.BEFORE_AFTER]: {
+    title: '',
+    before: { url: '', label: '시공 전', prompt: '' },
+    after: { url: '', label: '시공 후', prompt: '' },
+  },
+  [BlockTypes.DIAGRAM]: { title: '', source: '', imageUrl: '' },
+  [BlockTypes.CONSTRUCTION_STANDARD]: {
+    title: '',
+    standardCode: '',
+    clauses: [{ no: '1', text: '' }],
+  },
+  [BlockTypes.MATERIAL_SPEC]: { material: '', specs: [{ key: '', value: '' }] },
+  [BlockTypes.SCHEDULE]: { title: '', items: [{ task: '', start: '', end: '', owner: '' }] },
+  [BlockTypes.RISK_WARNING]: { severity: 'medium', title: '', risk: '', mitigation: '' },
+  [BlockTypes.SEO_META]: { title: '', description: '', keywords: [], slug: '' },
+  [BlockTypes.BLOG_SECTION]: { heading: '', body: '' },
+  [BlockTypes.TECHNICAL_SECTION]: { heading: '', body: '', references: [] },
+  [BlockTypes.ONTOLOGY_SUMMARY]: { title: '관련 지식', nodes: [] },
 };
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -101,6 +121,18 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   cost_table: '견적표',
   construction_detail: '시공상세',
   container: '컨테이너',
+  rich_text: '서식 텍스트',
+  image_gallery: '갤러리',
+  before_after: '전/후 비교',
+  diagram: '다이어그램',
+  construction_standard: '시공기준',
+  material_spec: '자재사양',
+  schedule: '공정표',
+  risk_warning: '위험경고',
+  seo_meta: 'SEO',
+  blog_section: '블로그섹션',
+  technical_section: '기술섹션',
+  ontology_summary: '지식요약',
 };
 
 type Props = {

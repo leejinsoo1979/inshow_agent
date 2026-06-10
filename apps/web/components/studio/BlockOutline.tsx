@@ -22,6 +22,18 @@ const TYPE_LABELS: Record<string, string> = {
   cost_table: '견적표',
   construction_detail: '시공상세',
   container: '컨테이너',
+  rich_text: '서식 텍스트',
+  image_gallery: '갤러리',
+  before_after: '전/후 비교',
+  diagram: '다이어그램',
+  construction_standard: '시공기준',
+  material_spec: '자재사양',
+  schedule: '공정표',
+  risk_warning: '위험경고',
+  seo_meta: 'SEO',
+  blog_section: '블로그섹션',
+  technical_section: '기술섹션',
+  ontology_summary: '지식요약',
 };
 
 function blockSummary(block: EditorBlock): string {

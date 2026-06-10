@@ -159,6 +159,44 @@ describe('전문 블록 타입 내보내기', () => {
   });
 });
 
+describe('확장 전문 블록(12종) 내보내기', () => {
+  const doc: DocumentForExport = {
+    id: 'd2',
+    title: '확장 블록',
+    blocks: [
+      { id: 'r', type: 'rich_text', sortOrder: 0, content: { text: '**굵게** 본문', format: 'markdown' } },
+      { id: 'ba', type: 'before_after', sortOrder: 1, content: { title: '비교', before: { url: 'b.jpg', label: '시공 전' }, after: { url: 'a.jpg', label: '시공 후' } } },
+      { id: 'rw', type: 'risk_warning', sortOrder: 2, content: { severity: 'high', title: '낙상', risk: '추락 위험', mitigation: '안전벨트' } },
+      { id: 'sc', type: 'schedule', sortOrder: 3, content: { title: '공정', items: [{ task: '철거', start: 'D+0', end: 'D+2', owner: 'A팀' }] } },
+      { id: 'ms', type: 'material_spec', sortOrder: 4, content: { material: '단열재', specs: [{ key: '두께', value: '100mm' }] } },
+      { id: 'os', type: 'ontology_summary', sortOrder: 5, content: { title: '관련 지식', nodes: ['결로', '단열재'] } },
+    ],
+  };
+
+  it('Markdown: 확장 블록을 직렬화한다', async () => {
+    const md = new TextDecoder().decode((await new MarkdownExporter().export(doc)).data);
+    expect(md).toContain('굵게');
+    expect(md).toContain('시공 전');
+    expect(md).toContain('추락 위험');
+    expect(md).toContain('철거');
+    expect(md).toContain('단열재');
+    expect(md).toContain('100mm');
+    expect(md).toContain('결로');
+  });
+
+  it('HTML: 위험경고 텍스트를 이스케이프해 담는다', async () => {
+    const html = new TextDecoder().decode((await new HtmlExporter().export(doc)).data);
+    expect(html).toContain('추락 위험');
+    expect(html).toContain('안전벨트');
+  });
+
+  it('JSON: 모든 확장 블록이 보존된다', async () => {
+    const parsed = JSON.parse(new TextDecoder().decode((await new JsonExporter().export(doc)).data));
+    expect(parsed.blocks).toHaveLength(6);
+    expect(parsed.blocks.map((b: { type: string }) => b.type)).toContain('material_spec');
+  });
+});
+
 describe('container 계층 내보내기', () => {
   const containerDoc: DocumentForExport = {
     id: 'doc_c',

@@ -2,24 +2,39 @@ import { safeUrlOrEmpty } from '@archi/security';
 import {
   CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  beforeAfterData,
+  blogSectionData,
   calloutData,
   chartData,
   checklistItems,
   codeData,
   collectSources,
   constructionDetailData,
+  constructionStandardData,
+  constructionStandardHeading,
   costTableData,
+  diagramData,
   docMetaEntries,
   formulaData,
+  imageGalleryData,
   lawReferenceData,
   lawReferenceHeading,
+  materialSpecData,
+  ontologySummaryData,
   qnaItems,
   quoteData,
+  richTextData,
+  riskWarningData,
   safeFilename,
+  scheduleData,
+  seoMetaData,
+  seoMetaEntries,
   tableData,
+  technicalSectionData,
   type DocumentForExport,
   type Exporter,
   type ExportResult,
+  type GalleryImage,
 } from './types';
 
 function esc(text: unknown): string {
@@ -198,6 +213,119 @@ export class HtmlExporter implements Exporter {
           if (c.title) parts.push(`<h3 class="container-title">${esc(c.title)}</h3>`);
           break;
         }
+        case 'rich_text': {
+          const rich = richTextData(block.content);
+          parts.push(`<p>${esc(rich.text)}</p>`);
+          break;
+        }
+        case 'image_gallery': {
+          const gallery = imageGalleryData(block.content);
+          if (gallery.title) parts.push(`<h3>${esc(gallery.title)}</h3>`);
+          const figures = gallery.images.map((img) => renderGalleryFigure(img)).join('');
+          parts.push(`<div class="image-gallery">${figures}</div>`);
+          break;
+        }
+        case 'before_after': {
+          const ba = beforeAfterData(block.content);
+          if (ba.title) parts.push(`<h3>${esc(ba.title)}</h3>`);
+          const sides = [ba.before, ba.after]
+            .map(
+              (side) =>
+                `<div class="ba-side"><p class="list-title">${esc(side.label)}</p>${renderGalleryFigure(
+                  { url: side.url, caption: side.label, prompt: side.prompt },
+                )}</div>`,
+            )
+            .join('');
+          parts.push(`<div class="before-after">${sides}</div>`);
+          break;
+        }
+        case 'diagram': {
+          const diagram = diagramData(block.content);
+          if (diagram.title) parts.push(`<h3>${esc(diagram.title)}</h3>`);
+          const url = diagram.imageUrl ? safeUrlOrEmpty(diagram.imageUrl) : '';
+          if (url) {
+            parts.push(
+              `<figure><img src="${esc(url)}" alt="${esc(diagram.title ?? '다이어그램')}"/></figure>`,
+            );
+          } else if (diagram.source) {
+            parts.push(`<pre><code>${esc(diagram.source)}</code></pre>`);
+          }
+          break;
+        }
+        case 'construction_standard': {
+          const std = constructionStandardData(block.content);
+          parts.push(`<h3>${esc(constructionStandardHeading(std))}</h3>`);
+          if (std.clauses.length > 0) {
+            parts.push(
+              `<ol class="construction-standard">${std.clauses
+                .map(
+                  (cl) =>
+                    `<li>${cl.no ? `<strong>${esc(cl.no)}.</strong> ` : ''}${esc(cl.text)}</li>`,
+                )
+                .join('')}</ol>`,
+            );
+          }
+          break;
+        }
+        case 'material_spec': {
+          const spec = materialSpecData(block.content);
+          parts.push(`<h3>자재: ${esc(spec.material)}</h3>`);
+          parts.push(renderHtmlTable(undefined, spec.headers, spec.rows));
+          break;
+        }
+        case 'schedule': {
+          const sched = scheduleData(block.content);
+          parts.push(renderHtmlTable(sched.title, sched.headers, sched.rows));
+          break;
+        }
+        case 'risk_warning': {
+          const risk = riskWarningData(block.content);
+          parts.push(
+            `<div class="risk-warning risk-${esc(risk.severity)}"><strong>⚠ [위험-${esc(
+              risk.severityLabel,
+            )}]${risk.title ? ` ${esc(risk.title)}` : ''}</strong><p>${esc(risk.risk)}</p>${
+              risk.mitigation ? `<p class="risk-mitigation">대응: ${esc(risk.mitigation)}</p>` : ''
+            }</div>`,
+          );
+          break;
+        }
+        case 'seo_meta': {
+          const entries = seoMetaEntries(seoMetaData(block.content));
+          if (entries.length === 0) break;
+          parts.push(
+            `<div class="seo-meta">${entries
+              .map(([k, v]) => `<p><strong>${esc(k)}</strong> ${esc(v)}</p>`)
+              .join('')}</div>`,
+          );
+          break;
+        }
+        case 'blog_section': {
+          const sec = blogSectionData(block.content);
+          if (sec.heading) parts.push(`<h3>${esc(sec.heading)}</h3>`);
+          if (sec.body) parts.push(`<p>${esc(sec.body)}</p>`);
+          break;
+        }
+        case 'technical_section': {
+          const sec = technicalSectionData(block.content);
+          if (sec.heading) parts.push(`<h3>${esc(sec.heading)}</h3>`);
+          if (sec.body) parts.push(`<p>${esc(sec.body)}</p>`);
+          if (sec.references.length > 0) {
+            parts.push(
+              `<p class="list-title">참고</p><ul class="references">${sec.references
+                .map((ref) => `<li>${esc(ref)}</li>`)
+                .join('')}</ul>`,
+            );
+          }
+          break;
+        }
+        case 'ontology_summary': {
+          const onto = ontologySummaryData(block.content);
+          if (onto.title) parts.push(`<h3>${esc(onto.title)}</h3>`);
+          if (onto.nodes.length > 0) {
+            parts.push(`<p class="ontology-summary">관련 지식: ${esc(onto.nodes.join(', '))}</p>`);
+          }
+          break;
+        }
         default:
           break;
       }
@@ -249,6 +377,19 @@ export class HtmlExporter implements Exporter {
   .detail-placeholder { color: #71717a; font-style: italic; }
   .detail-notes { color: #b45309; }
   .container-title { border-top: 2px solid #18181b; padding-top: 10px; margin-top: 24px; font-weight: 700; }
+  .image-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .image-gallery figure, .before-after figure { margin: 0; }
+  .image-placeholder { color: #71717a; font-style: italic; }
+  .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .construction-standard li { margin: 4px 0; }
+  .risk-warning { border-radius: 8px; padding: 12px 16px; margin: 14px 0; border-left: 4px solid #71717a; background: #f4f4f5; }
+  .risk-low { border-left-color: #059669; }
+  .risk-medium { border-left-color: #d97706; }
+  .risk-high { border-left-color: #dc2626; }
+  .risk-mitigation { color: #52525b; }
+  .seo-meta { color: #52525b; font-size: 0.85rem; border-left: 3px solid #18181b; padding: 4px 10px; background: #f4f4f5; }
+  .seo-meta p { margin: 2px 0; }
+  .ontology-summary { color: #3f3f46; font-style: italic; }
 </style>
 </head>
 <body>
@@ -262,6 +403,16 @@ ${parts.join('\n')}
       data: new TextEncoder().encode(html),
     };
   }
+}
+
+function renderGalleryFigure(img: GalleryImage): string {
+  const url = img.url ? safeUrlOrEmpty(img.url) : '';
+  if (url) {
+    return `<figure><img src="${esc(url)}" alt="${esc(img.caption ?? '이미지')}"/>${
+      img.caption ? `<figcaption>${esc(img.caption)}</figcaption>` : ''
+    }</figure>`;
+  }
+  return `<p class="image-placeholder">[이미지: ${esc(img.caption || img.prompt || '')}]</p>`;
 }
 
 function renderHtmlTable(title: string | undefined, headers: string[], rows: string[][]): string {

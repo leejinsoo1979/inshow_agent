@@ -325,3 +325,229 @@ export function constructionDetailData(
     notes: typeof content.notes === 'string' && content.notes ? content.notes : undefined,
   };
 }
+
+function optStr(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+export type RichTextData = { text: string; format?: string };
+
+export function richTextData(content: Record<string, unknown>): RichTextData {
+  return {
+    text: typeof content.text === 'string' ? content.text : '',
+    format: optStr(content.format),
+  };
+}
+
+export type GalleryImage = { url?: string; caption?: string; prompt?: string };
+
+export type ImageGalleryData = { title?: string; images: GalleryImage[] };
+
+export function imageGalleryData(content: Record<string, unknown>): ImageGalleryData {
+  return {
+    title: optStr(content.title),
+    images: Array.isArray(content.images)
+      ? (content.images as Record<string, unknown>[]).map((img) => ({
+          url: optStr(img.url),
+          caption: optStr(img.caption),
+          prompt: optStr(img.prompt),
+        }))
+      : [],
+  };
+}
+
+export type BeforeAfterImage = { url?: string; label: string; prompt?: string };
+
+export type BeforeAfterData = {
+  title?: string;
+  before: BeforeAfterImage;
+  after: BeforeAfterImage;
+};
+
+function beforeAfterImage(value: unknown, fallbackLabel: string): BeforeAfterImage {
+  const v = (value ?? {}) as Record<string, unknown>;
+  return {
+    url: optStr(v.url),
+    label: typeof v.label === 'string' && v.label ? v.label : fallbackLabel,
+    prompt: optStr(v.prompt),
+  };
+}
+
+export function beforeAfterData(content: Record<string, unknown>): BeforeAfterData {
+  return {
+    title: optStr(content.title),
+    before: beforeAfterImage(content.before, '시공 전'),
+    after: beforeAfterImage(content.after, '시공 후'),
+  };
+}
+
+export type DiagramData = { title?: string; source: string; imageUrl?: string };
+
+export function diagramData(content: Record<string, unknown>): DiagramData {
+  return {
+    title: optStr(content.title),
+    source: typeof content.source === 'string' ? content.source : '',
+    imageUrl: optStr(content.imageUrl),
+  };
+}
+
+export type ConstructionStandardClause = { no?: string; text: string };
+
+export type ConstructionStandardData = {
+  title?: string;
+  standardCode?: string;
+  clauses: ConstructionStandardClause[];
+};
+
+export function constructionStandardData(
+  content: Record<string, unknown>,
+): ConstructionStandardData {
+  return {
+    title: optStr(content.title),
+    standardCode: optStr(content.standardCode),
+    clauses: Array.isArray(content.clauses)
+      ? (content.clauses as Record<string, unknown>[]).map((cl) => ({
+          no: optStr(cl.no),
+          text: typeof cl.text === 'string' ? cl.text : '',
+        }))
+      : [],
+  };
+}
+
+/** construction_standard 조항을 "{no}. {text}" 라벨로 변환 */
+export function constructionStandardHeading(data: ConstructionStandardData): string {
+  return [data.title ?? '시공 표준', data.standardCode ? `(${data.standardCode})` : '']
+    .filter(Boolean)
+    .join(' ');
+}
+
+export type MaterialSpecData = {
+  material: string;
+  headers: string[];
+  rows: string[][];
+};
+
+const MATERIAL_SPEC_HEADERS = ['항목', '값'];
+
+export function materialSpecData(content: Record<string, unknown>): MaterialSpecData {
+  const specs = Array.isArray(content.specs)
+    ? (content.specs as Record<string, unknown>[])
+    : [];
+  return {
+    material: typeof content.material === 'string' ? content.material : '',
+    headers: MATERIAL_SPEC_HEADERS,
+    rows: specs.map((s) => [
+      typeof s.key === 'string' ? s.key : '',
+      typeof s.value === 'string' ? s.value : '',
+    ]),
+  };
+}
+
+export type ScheduleData = { title?: string; headers: string[]; rows: string[][] };
+
+const SCHEDULE_HEADERS = ['공정', '시작', '종료', '담당'];
+
+export function scheduleData(content: Record<string, unknown>): ScheduleData {
+  const items = Array.isArray(content.items)
+    ? (content.items as Record<string, unknown>[])
+    : [];
+  return {
+    title: optStr(content.title),
+    headers: SCHEDULE_HEADERS,
+    rows: items.map((it) => [
+      typeof it.task === 'string' ? it.task : '',
+      typeof it.start === 'string' ? it.start : '',
+      typeof it.end === 'string' ? it.end : '',
+      typeof it.owner === 'string' ? it.owner : '',
+    ]),
+  };
+}
+
+export type RiskWarningData = {
+  severity: string;
+  severityLabel: string;
+  title?: string;
+  risk: string;
+  mitigation?: string;
+};
+
+export const RISK_SEVERITY_LABELS: Record<string, string> = {
+  low: '낮음',
+  medium: '보통',
+  high: '높음',
+};
+
+export function riskWarningData(content: Record<string, unknown>): RiskWarningData {
+  const severity = typeof content.severity === 'string' ? content.severity : 'low';
+  return {
+    severity,
+    severityLabel: RISK_SEVERITY_LABELS[severity] ?? severity,
+    title: optStr(content.title),
+    risk: typeof content.risk === 'string' ? content.risk : '',
+    mitigation: optStr(content.mitigation),
+  };
+}
+
+export type SeoMetaData = {
+  title?: string;
+  description?: string;
+  keywords: string[];
+  slug?: string;
+};
+
+export function seoMetaData(content: Record<string, unknown>): SeoMetaData {
+  return {
+    title: optStr(content.title),
+    description: optStr(content.description),
+    keywords: Array.isArray(content.keywords)
+      ? (content.keywords as unknown[]).filter((k): k is string => typeof k === 'string')
+      : [],
+    slug: optStr(content.slug),
+  };
+}
+
+/** seo_meta를 라벨/값 쌍으로 변환 (빈 값은 생략) */
+export function seoMetaEntries(data: SeoMetaData): [string, string][] {
+  const entries: [string, string][] = [];
+  if (data.title) entries.push(['SEO 제목', data.title]);
+  if (data.description) entries.push(['설명', data.description]);
+  if (data.keywords.length > 0) entries.push(['키워드', data.keywords.join(', ')]);
+  if (data.slug) entries.push(['슬러그', data.slug]);
+  return entries;
+}
+
+export type BlogSectionData = { heading: string; body: string };
+
+export function blogSectionData(content: Record<string, unknown>): BlogSectionData {
+  return {
+    heading: typeof content.heading === 'string' ? content.heading : '',
+    body: typeof content.body === 'string' ? content.body : '',
+  };
+}
+
+export type TechnicalSectionData = {
+  heading: string;
+  body: string;
+  references: string[];
+};
+
+export function technicalSectionData(content: Record<string, unknown>): TechnicalSectionData {
+  return {
+    heading: typeof content.heading === 'string' ? content.heading : '',
+    body: typeof content.body === 'string' ? content.body : '',
+    references: Array.isArray(content.references)
+      ? (content.references as unknown[]).filter((r): r is string => typeof r === 'string')
+      : [],
+  };
+}
+
+export type OntologySummaryData = { title: string; nodes: string[] };
+
+export function ontologySummaryData(content: Record<string, unknown>): OntologySummaryData {
+  return {
+    title: typeof content.title === 'string' ? content.title : '',
+    nodes: Array.isArray(content.nodes)
+      ? (content.nodes as unknown[]).filter((n): n is string => typeof n === 'string')
+      : [],
+  };
+}
