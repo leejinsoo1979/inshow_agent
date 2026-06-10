@@ -4,3 +4,4 @@ export * from './mock-llm';
 export * from './search-provider';
 export * from './mock-search';
 export * from './intent';
+export * from './mentions';

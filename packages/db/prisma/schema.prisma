@@ -348,6 +348,68 @@ enum ExportStatus {
   FAILED
 }
 
+model Channel {
+  id          String           @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime         @default(now())
+  messages    ChannelMessage[]
+
+  @@index([workspaceId])
+}
+
+model ChannelMessage {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String?
+  authorType String  @default("user") // user | system | agent
+  text      String
+  createdAt DateTime @default(now())
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+}
+
+model Task {
+  id               String      @id @default(cuid())
+  workspaceId      String
+  projectId        String?
+  channelMessageId String?
+  title            String
+  description      String?
+  assigneeAgent    String?
+  status           TaskStatus  @default(QUEUED)
+  output           Json?
+  outputDocumentId String?
+  requiresReview   Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  events           TaskEvent[]
+
+  @@index([workspaceId, status, updatedAt])
+}
+
+enum TaskStatus {
+  QUEUED
+  RUNNING
+  BLOCKED
+  NEEDS_REVIEW
+  DONE
+  FAILED
+  CANCELED
+}
+
+model TaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  type      String
+  payload   Json?
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
