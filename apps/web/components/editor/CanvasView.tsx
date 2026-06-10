@@ -133,6 +133,8 @@ export function CanvasView({
   const layoutsRef = useRef(layouts);
   layoutsRef.current = layouts;
   const contentTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // 캔버스 내부 클립보드 (Ctrl/Cmd+C → V 복사·붙여넣기)
+  const clipboardRef = useRef<{ type: string; content: Record<string, unknown>; canvas: CanvasLayout } | null>(null);
   const dragRef = useRef<{
     id: string;
     kind: 'move' | 'resize';
@@ -173,14 +175,81 @@ export function CanvasView({
     onSaveStateChange?.(saveState);
   }, [saveState, onSaveStateChange]);
 
-  // Esc로 편집 모드 종료
+  const deleteBlockById = useCallback(
+    async (id: string) => {
+      onSelectBlock(null);
+      setEditingId(null);
+      try {
+        await apiFetch(`/api/blocks/${id}`, { method: 'DELETE' });
+        load();
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    },
+    [onSelectBlock, load],
+  );
+
+  const pasteBlock = useCallback(async () => {
+    const clip = clipboardRef.current;
+    if (!clip) return;
+    try {
+      const created = await apiFetch<{ id: string }>(`/api/documents/${documentId}/blocks`, {
+        method: 'POST',
+        body: JSON.stringify({ block: { type: clip.type, content: clip.content } }),
+      });
+      // 원본에서 살짝 어긋난 위치에 배치 (피그마/PPT 붙여넣기 관습)
+      const canvas: CanvasLayout = {
+        x: clip.canvas.x + 24,
+        y: clip.canvas.y + 24,
+        w: clip.canvas.w,
+        h: clip.canvas.h,
+      };
+      await apiFetch(`/api/blocks/${created.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ canvas }),
+      });
+      load();
+      onSelectBlock(created.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [documentId, load, onSelectBlock]);
+
+  // 캔버스 키보드 단축키: Esc(편집 종료) / Backspace·Delete(삭제) / Cmd·Ctrl+C·V(복사·붙여넣기)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setEditingId(null);
+      if (e.key === 'Escape') {
+        setEditingId(null);
+        return;
+      }
+      // 글자 편집 중이거나 입력 요소에 포커스가 있으면 일반 텍스트 동작을 그대로 둔다.
+      if (editingId) return;
+      const ae = document.activeElement as HTMLElement | null;
+      const tag = ae?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ae?.isContentEditable) return;
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'c' || e.key === 'C')) {
+        if (!selectedBlockId) return;
+        const blk = doc?.blocks.find((b) => b.id === selectedBlockId);
+        const canvas = layoutsRef.current[selectedBlockId];
+        if (blk && canvas) clipboardRef.current = { type: blk.type, content: blk.content, canvas };
+        return;
+      }
+      if (mod && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        void pasteBlock();
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (!selectedBlockId) return;
+        e.preventDefault();
+        void deleteBlockById(selectedBlockId);
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [editingId, selectedBlockId, doc, deleteBlockById, pasteBlock]);
 
   // 우측 패널 '+ 블록 추가' → 문단 블록을 만들고 캔버스에 배치
   const addBlockKey = useRef(openAddMenuKey);
