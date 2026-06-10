@@ -183,6 +183,28 @@ export function CanvasView({
   const clipboardRef = useRef<Clip[] | null>(null);
   const dragRef = useRef<DragState | null>(null);
 
+  // container(부모) → 자식 블록 id 인덱스. 컨테이너를 그룹처럼 이동·삭제할 때 사용.
+  const childIdsByParentRef = useRef<Map<string, string[]>>(new Map());
+  {
+    const map = new Map<string, string[]>();
+    for (const b of doc?.blocks ?? []) {
+      if (b.parentId) {
+        const list = map.get(b.parentId) ?? [];
+        list.push(b.id);
+        map.set(b.parentId, list);
+      }
+    }
+    childIdsByParentRef.current = map;
+  }
+  /** id 집합에 컨테이너 자식들을 더해 반환 (container를 그룹으로 취급) */
+  const withChildren = (ids: Iterable<string>): Set<string> => {
+    const out = new Set(ids);
+    for (const id of out) {
+      for (const child of childIdsByParentRef.current.get(id) ?? []) out.add(child);
+    }
+    return out;
+  };
+
   const load = useCallback(() => {
     apiFetch<DocumentWithBlocks>(`/api/documents/${documentId}`)
       .then((data) => {
@@ -248,21 +270,25 @@ export function CanvasView({
       if (!ids.length) return;
       applySelection(new Set(), null);
       setEditingId(null);
-      // 낙관적 삭제: 즉시 화면에서 제거, API는 백그라운드. 실패 시 복구.
-      ids.forEach((id) => {
+      // 컨테이너 삭제 시 자식도 함께 제거(서버는 onDelete Cascade, 화면은 즉시 제거)
+      const localIds = [...withChildren(ids)];
+      localIds.forEach((id) => {
         const t = contentTimers.current.get(id);
         if (t) {
           clearTimeout(t);
           contentTimers.current.delete(id);
         }
       });
-      setDoc((prev) => (prev ? { ...prev, blocks: prev.blocks.filter((b) => !ids.includes(b.id)) } : prev));
+      setDoc((prev) =>
+        prev ? { ...prev, blocks: prev.blocks.filter((b) => !localIds.includes(b.id)) } : prev,
+      );
       setLayouts((prev) => {
         const next = { ...prev };
-        ids.forEach((id) => delete next[id]);
+        localIds.forEach((id) => delete next[id]);
         return next;
       });
       try {
+        // 원본 id만 DELETE — 자식은 DB cascade로 삭제된다
         await Promise.all(ids.map((id) => apiFetch(`/api/blocks/${id}`, { method: 'DELETE' })));
       } catch (e) {
         setError((e as Error).message);
@@ -528,6 +554,9 @@ export function CanvasView({
         movingSet = new Set([id]);
         applySelection(movingSet, id);
       }
+
+      // 컨테이너를 잡으면 자식 블록도 함께 이동(그룹)
+      if (kind === 'move') movingSet = withChildren(movingSet);
 
       const bases: Record<string, CanvasLayout> = {};
       movingSet.forEach((mid) => {
