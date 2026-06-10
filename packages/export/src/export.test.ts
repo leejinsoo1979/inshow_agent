@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { HtmlExporter } from './html';
 import { MarkdownExporter } from './markdown';
 import { PdfExporter } from './pdf';
 import { TxtExporter } from './txt';
@@ -79,6 +80,81 @@ describe('MarkdownExporter', () => {
     expect(md).toContain('**건축법 시행령**');
     // source_reference는 본문이 아닌 출처 섹션에만 나타난다
     expect(md.indexOf('건축법 시행령')).toBeGreaterThan(md.indexOf('## 출처'));
+  });
+});
+
+const professionalDocument: DocumentForExport = {
+  id: 'doc_pro',
+  title: '단열 기술자료',
+  blocks: [
+    {
+      id: 'p1',
+      type: 'law_reference',
+      sortOrder: 0,
+      content: { law: '건축물의 에너지절약설계기준', article: '제2조', summary: '단열 기준 정의' },
+    },
+    {
+      id: 'p2',
+      type: 'callout',
+      sortOrder: 1,
+      content: { variant: 'warning', title: '주의', text: '결로 방지 필수' },
+    },
+    { id: 'p3', type: 'quote', sortOrder: 2, content: { text: '1미터의 법칙', attribution: '시공 원칙' } },
+    { id: 'p4', type: 'code', sortOrder: 3, content: { language: 'ts', code: 'const u = 0.24;' } },
+    {
+      id: 'p5',
+      type: 'cost_table',
+      sortOrder: 4,
+      content: {
+        title: '단열 견적',
+        currency: '원',
+        items: [
+          { name: '단열재', spec: 'T100', quantity: 10, unit: '㎡', unitPrice: 20000 },
+          { name: '시공비', quantity: 1, unit: '식', unitPrice: 300000 },
+        ],
+      },
+    },
+    {
+      id: 'p6',
+      type: 'construction_detail',
+      sortOrder: 5,
+      content: { title: '결로방지 상세', steps: ['바탕 정리', '단열재 부착'], notes: '이격 주의' },
+    },
+  ],
+};
+
+describe('전문 블록 타입 내보내기', () => {
+  it('Markdown: 6종 전문 블록을 직렬화한다 (견적 합계 포함)', async () => {
+    const md = new TextDecoder().decode((await new MarkdownExporter().export(professionalDocument)).data);
+    expect(md).toContain('건축물의 에너지절약설계기준');
+    expect(md).toContain('결로 방지 필수');
+    expect(md).toContain('1미터의 법칙');
+    expect(md).toContain('const u = 0.24;');
+    expect(md).toContain('단열재');
+    // 견적 합계 = 10*20000 + 1*300000 = 500,000
+    expect(md).toContain('500,000');
+    expect(md).toContain('결로방지 상세');
+  });
+
+  it('HTML: code 블록을 이스케이프하고 callout 클래스를 단다', async () => {
+    const doc: DocumentForExport = {
+      id: 'd',
+      title: 't',
+      blocks: [
+        { id: 'c1', type: 'code', sortOrder: 0, content: { code: 'const x = a < b && c > d;' } },
+        { id: 'c2', type: 'callout', sortOrder: 1, content: { variant: 'danger', text: '위험' } },
+      ],
+    };
+    const html = new TextDecoder().decode((await new HtmlExporter().export(doc)).data);
+    expect(html).toContain('&lt;'); // < 이스케이프됨
+    expect(html).not.toContain('const x = a < b'); // 원문 그대로 들어가면 안 됨
+    expect(html).toContain('callout');
+  });
+
+  it('TXT: 전문 블록도 빈 출력 없이 텍스트로 변환된다', async () => {
+    const txt = new TextDecoder().decode((await new TxtExporter().export(professionalDocument)).data);
+    expect(txt).toContain('건축물의 에너지절약설계기준');
+    expect(txt).toContain('단열재');
   });
 });
 

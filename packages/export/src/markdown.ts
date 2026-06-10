@@ -1,12 +1,20 @@
 import { safeUrlOrEmpty } from '@archi/security';
 import {
+  CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  calloutData,
   chartData,
   checklistItems,
+  codeData,
   collectSources,
+  constructionDetailData,
+  costTableData,
   docMetaEntries,
   formulaData,
+  lawReferenceData,
+  lawReferenceHeading,
   qnaItems,
+  quoteData,
   safeFilename,
   tableData,
   type DocumentForExport,
@@ -109,6 +117,64 @@ export class MarkdownExporter implements Exporter {
             lines.push(`A. ${item.answer}`, '');
             if (item.basis) lines.push(`근거: ${item.basis}`, '');
           }
+          break;
+        }
+        case 'law_reference': {
+          const law = lawReferenceData(block.content);
+          if (!law) break;
+          lines.push(`> **법규** ${lawReferenceHeading(law)}`);
+          if (law.summary) lines.push('>', `> ${law.summary}`);
+          lines.push('');
+          if (law.link) {
+            lines.push(`[원문](${safeUrlOrEmpty(law.link)})`, '');
+          }
+          break;
+        }
+        case 'callout': {
+          const callout = calloutData(block.content);
+          const variantLabel = CALLOUT_VARIANT_LABELS[callout.variant] ?? callout.variant;
+          const headParts = [`[!${callout.variant.toUpperCase()}]`, variantLabel];
+          if (callout.title) headParts.push(callout.title);
+          lines.push(`> ${headParts.join(' ')}`, `> ${callout.text}`, '');
+          break;
+        }
+        case 'quote': {
+          const quote = quoteData(block.content);
+          lines.push(`> ${quote.text}`);
+          if (quote.attribution) lines.push('>', `> — ${quote.attribution}`);
+          lines.push('');
+          break;
+        }
+        case 'code': {
+          const code = codeData(block.content);
+          lines.push('```' + (code.language ?? ''), code.code, '```', '');
+          break;
+        }
+        case 'cost_table': {
+          const cost = costTableData(block.content);
+          if (cost.title) lines.push(`**${cost.title}**`, '');
+          lines.push(`| ${cost.headers.join(' | ')} |`);
+          lines.push(`| ${cost.headers.map(() => '---').join(' | ')} |`);
+          for (const row of cost.rows) {
+            lines.push(`| ${cost.headers.map((_, i) => row[i] ?? '').join(' | ')} |`);
+          }
+          lines.push('');
+          if (cost.note) lines.push(cost.note, '');
+          break;
+        }
+        case 'construction_detail': {
+          const detail = constructionDetailData(block.content);
+          if (detail.title) lines.push(`### ${detail.title}`, '');
+          if (detail.imageUrl) {
+            lines.push(`![${detail.title ?? '상세도'}](${safeUrlOrEmpty(detail.imageUrl)})`, '');
+          } else if (detail.imagePrompt) {
+            lines.push(`[상세도: ${detail.imagePrompt}]`, '');
+          }
+          detail.steps.forEach((step, i) => {
+            lines.push(`${i + 1}. ${step}`);
+          });
+          if (detail.steps.length > 0) lines.push('');
+          if (detail.notes) lines.push(`주의: ${detail.notes}`, '');
           break;
         }
         default:

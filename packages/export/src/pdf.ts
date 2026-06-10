@@ -1,13 +1,21 @@
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {
+  CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  calloutData,
   chartData,
   checklistItems,
+  codeData,
   collectSources,
+  constructionDetailData,
+  costTableData,
   docMetaEntries,
   formulaData,
+  lawReferenceData,
+  lawReferenceHeading,
   qnaItems,
+  quoteData,
   safeFilename,
   tableData,
   type DocumentForExport,
@@ -144,6 +152,100 @@ export class PdfExporter implements Exporter {
             if (item.basis) {
               writer.writeText(`근거: ${item.basis}`, { gapAfter: 3, color: rgb(0.45, 0.45, 0.5) });
             }
+          }
+          writer.gap(4);
+          break;
+        }
+        case 'law_reference': {
+          const law = lawReferenceData(block.content);
+          if (!law) break;
+          writer.writeText(`📋 ${lawReferenceHeading(law)}`, {
+            size: 12,
+            gapBefore: 6,
+            gapAfter: 4,
+          });
+          if (law.summary) writer.writeText(law.summary, { gapAfter: 2 });
+          if (law.link) {
+            writer.writeText(`원문: ${law.link}`, { gapAfter: 4, color: rgb(0.35, 0.35, 0.5) });
+          }
+          writer.gap(4);
+          break;
+        }
+        case 'callout': {
+          const callout = calloutData(block.content);
+          const variantLabel = CALLOUT_VARIANT_LABELS[callout.variant] ?? callout.variant;
+          writer.writeText(`[${variantLabel}]${callout.title ? ` ${callout.title}` : ''}`, {
+            size: 12,
+            gapBefore: 6,
+            gapAfter: 2,
+          });
+          writer.writeText(callout.text, { gapAfter: 8, color: rgb(0.25, 0.25, 0.28) });
+          break;
+        }
+        case 'quote': {
+          const quote = quoteData(block.content);
+          writer.writeText(`“${quote.text}”`, { gapBefore: 6, gapAfter: 2 });
+          if (quote.attribution) {
+            writer.writeText(`— ${quote.attribution}`, {
+              gapAfter: 8,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          } else {
+            writer.gap(6);
+          }
+          break;
+        }
+        case 'code': {
+          const code = codeData(block.content);
+          if (code.language) {
+            writer.writeText(`code (${code.language})`, {
+              size: 10,
+              gapBefore: 6,
+              gapAfter: 2,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          }
+          for (const line of code.code.split('\n')) {
+            writer.writeText(line, { gapAfter: 1, color: rgb(0.2, 0.2, 0.25) });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'cost_table': {
+          const cost = costTableData(block.content);
+          if (cost.title) writer.writeText(cost.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          writer.writeText(cost.headers.join('  |  '), { gapAfter: 2 });
+          for (const row of cost.rows) {
+            writer.writeText(cost.headers.map((_, i) => row[i] ?? '').join('  |  '), {
+              gapAfter: 2,
+              color: rgb(0.25, 0.25, 0.28),
+            });
+          }
+          if (cost.note) {
+            writer.writeText(cost.note, { gapAfter: 4, color: rgb(0.45, 0.45, 0.5) });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'construction_detail': {
+          const detail = constructionDetailData(block.content);
+          if (detail.title) {
+            writer.writeText(detail.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          }
+          if (detail.imageUrl || detail.imagePrompt) {
+            writer.writeText(`[상세도${detail.imagePrompt ? `: ${detail.imagePrompt}` : ''}]`, {
+              gapAfter: 4,
+              color: rgb(0.45, 0.45, 0.5),
+            });
+          }
+          detail.steps.forEach((step, i) => {
+            writer.writeText(`${i + 1}. ${step}`, { gapAfter: 2 });
+          });
+          if (detail.notes) {
+            writer.writeText(`주의: ${detail.notes}`, {
+              gapAfter: 4,
+              color: rgb(0.45, 0.45, 0.5),
+            });
           }
           writer.gap(4);
           break;

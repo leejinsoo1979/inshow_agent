@@ -23,6 +23,12 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   formula: '계산식',
   doc_meta: '문서정보',
   qna: 'Q&A',
+  law_reference: '법규',
+  callout: '강조',
+  quote: '인용',
+  code: '코드',
+  cost_table: '견적표',
+  construction_detail: '시공상세',
 };
 
 export default function DocumentStudioPage({

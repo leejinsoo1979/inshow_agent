@@ -1,12 +1,20 @@
 import { safeUrlOrEmpty } from '@archi/security';
 import {
+  CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  calloutData,
   chartData,
   checklistItems,
+  codeData,
   collectSources,
+  constructionDetailData,
+  costTableData,
   docMetaEntries,
   formulaData,
+  lawReferenceData,
+  lawReferenceHeading,
   qnaItems,
+  quoteData,
   safeFilename,
   tableData,
   type DocumentForExport,
@@ -128,6 +136,64 @@ export class HtmlExporter implements Exporter {
         }
         case 'source_reference':
           break;
+        case 'law_reference': {
+          const law = lawReferenceData(block.content);
+          if (!law) break;
+          const url = law.link ? safeUrlOrEmpty(law.link) : '';
+          parts.push(
+            `<blockquote class="law-ref"><strong>${esc(lawReferenceHeading(law))}</strong>${
+              law.summary ? `<p>${esc(law.summary)}</p>` : ''
+            }${url ? `<a href="${esc(url)}">원문</a>` : ''}</blockquote>`,
+          );
+          break;
+        }
+        case 'callout': {
+          const callout = calloutData(block.content);
+          const variantLabel = CALLOUT_VARIANT_LABELS[callout.variant] ?? callout.variant;
+          parts.push(
+            `<div class="callout callout-${esc(callout.variant)}">${
+              callout.title ? `<strong>${esc(callout.title)}</strong>` : ''
+            }<p>${esc(callout.text)}</p><small>${esc(variantLabel)}</small></div>`,
+          );
+          break;
+        }
+        case 'quote': {
+          const quote = quoteData(block.content);
+          parts.push(
+            `<blockquote><p>${esc(quote.text)}</p>${
+              quote.attribution ? `<cite>${esc(quote.attribution)}</cite>` : ''
+            }</blockquote>`,
+          );
+          break;
+        }
+        case 'code': {
+          const code = codeData(block.content);
+          parts.push(`<pre><code>${esc(code.code)}</code></pre>`);
+          break;
+        }
+        case 'cost_table': {
+          const cost = costTableData(block.content);
+          parts.push(renderHtmlTable(cost.title, cost.headers, cost.rows));
+          if (cost.note) parts.push(`<p class="cost-note">${esc(cost.note)}</p>`);
+          break;
+        }
+        case 'construction_detail': {
+          const detail = constructionDetailData(block.content);
+          const head = detail.title ? `<h3>${esc(detail.title)}</h3>` : '';
+          let media = '';
+          const url = detail.imageUrl ? safeUrlOrEmpty(detail.imageUrl) : '';
+          if (url) {
+            media = `<figure><img src="${esc(url)}" alt="${esc(detail.title ?? '상세도')}"/></figure>`;
+          } else if (detail.imagePrompt) {
+            media = `<p class="detail-placeholder">[상세도: ${esc(detail.imagePrompt)}]</p>`;
+          }
+          const steps = detail.steps.length
+            ? `<ol>${detail.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`
+            : '';
+          const notes = detail.notes ? `<p class="detail-notes">주의: ${esc(detail.notes)}</p>` : '';
+          parts.push(`<div class="construction-detail">${head}${media}${steps}${notes}</div>`);
+          break;
+        }
         default:
           break;
       }
@@ -164,6 +230,20 @@ export class HtmlExporter implements Exporter {
   .cta { background: #18181b; color: #fff; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0; }
   .cta a { display: inline-block; background: #fff; color: #18181b; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; }
   .list-title { font-weight: 700; }
+  .law-ref { border-left: 3px solid #18181b; padding: 8px 14px; background: #f4f4f5; }
+  .law-ref a { color: #18181b; }
+  .callout { border-radius: 8px; padding: 12px 16px; margin: 14px 0; border-left: 4px solid #71717a; background: #f4f4f5; }
+  .callout-info { border-left-color: #2563eb; }
+  .callout-warning { border-left-color: #d97706; }
+  .callout-tip { border-left-color: #059669; }
+  .callout-danger { border-left-color: #dc2626; }
+  .callout small { color: #71717a; text-transform: uppercase; font-size: 0.7rem; }
+  blockquote cite { display: block; color: #71717a; font-size: 0.9rem; margin-top: 6px; }
+  pre { background: #18181b; color: #fff; padding: 12px 16px; border-radius: 8px; overflow-x: auto; }
+  pre code { font-family: 'SFMono-Regular', Consolas, monospace; }
+  .cost-note { color: #71717a; font-size: 0.85rem; }
+  .detail-placeholder { color: #71717a; font-style: italic; }
+  .detail-notes { color: #b45309; }
 </style>
 </head>
 <body>

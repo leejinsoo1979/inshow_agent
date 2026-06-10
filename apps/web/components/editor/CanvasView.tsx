@@ -29,6 +29,12 @@ const TYPE_LABELS: Record<string, string> = {
   formula: '계산식',
   doc_meta: '문서정보',
   qna: 'Q&A',
+  law_reference: '법규',
+  callout: '강조',
+  quote: '인용',
+  code: '코드',
+  cost_table: '견적표',
+  construction_detail: '시공상세',
 };
 
 /** 캔버스 좌표가 아직 없는 블록을 세로로 쌓는 기본 높이(타입별) */
@@ -44,6 +50,12 @@ const DEFAULT_H: Record<string, number> = {
   formula: 184,
   doc_meta: 120,
   qna: 240,
+  law_reference: 160,
+  callout: 120,
+  quote: 100,
+  code: 180,
+  cost_table: 240,
+  construction_detail: 280,
 };
 
 /** 8방향 리사이즈 핸들 정의: 위치/커서 */

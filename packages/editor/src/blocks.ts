@@ -17,6 +17,12 @@ export const BlockTypes = {
   FORMULA: 'formula',
   DOC_META: 'doc_meta',
   QNA: 'qna',
+  LAW_REFERENCE: 'law_reference',
+  CALLOUT: 'callout',
+  QUOTE: 'quote',
+  CODE: 'code',
+  COST_TABLE: 'cost_table',
+  CONSTRUCTION_DETAIL: 'construction_detail',
 } as const;
 
 export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
@@ -124,6 +130,61 @@ export const qnaContentSchema = z.object({
     .min(1, 'Q&A 항목이 최소 1개 필요합니다.'),
 });
 
+/** 법규 인용 블록 (법규해설서: 법령/조항 + 요약 + 원문 링크). 법규 답변의 citation 근거. */
+export const lawReferenceContentSchema = z.object({
+  law: z.string().min(1, '법령명을 입력해 주세요.'),
+  article: z.string().optional(),
+  clause: z.string().optional(),
+  summary: z.string().optional(),
+  link: z.string().optional(),
+});
+
+/** 강조 박스(콜아웃): 정보/주의/팁/경고 */
+export const calloutContentSchema = z.object({
+  variant: z.enum(['info', 'warning', 'tip', 'danger']).default('info'),
+  title: z.string().optional(),
+  text: z.string(),
+});
+
+/** 인용구 블록 */
+export const quoteContentSchema = z.object({
+  text: z.string(),
+  attribution: z.string().optional(),
+});
+
+/** 코드 블록 */
+export const codeContentSchema = z.object({
+  language: z.string().optional(),
+  code: z.string(),
+});
+
+/** 견적/비용표: 항목별 수량·단가, 합계는 렌더·내보내기에서 자동 계산 */
+export const costTableContentSchema = z.object({
+  title: z.string().optional(),
+  currency: z.string().default('원'),
+  items: z
+    .array(
+      z.object({
+        name: z.string(),
+        spec: z.string().optional(),
+        quantity: z.number().default(0),
+        unit: z.string().optional(),
+        unitPrice: z.number().default(0),
+      }),
+    )
+    .default([]),
+  note: z.string().optional(),
+});
+
+/** 시공 상세: 상세도 이미지 + 단계별 시공 절차 + 주의사항 */
+export const constructionDetailContentSchema = z.object({
+  title: z.string().optional(),
+  imageUrl: z.string().optional(),
+  imagePrompt: z.string().optional(),
+  steps: z.array(z.string()).default([]),
+  notes: z.string().optional(),
+});
+
 export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   heading: headingContentSchema,
   paragraph: paragraphContentSchema,
@@ -136,6 +197,12 @@ export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   formula: formulaContentSchema,
   doc_meta: docMetaContentSchema,
   qna: qnaContentSchema,
+  law_reference: lawReferenceContentSchema,
+  callout: calloutContentSchema,
+  quote: quoteContentSchema,
+  code: codeContentSchema,
+  cost_table: costTableContentSchema,
+  construction_detail: constructionDetailContentSchema,
 };
 
 export const blockTypeSchema = z.enum([
@@ -150,6 +217,12 @@ export const blockTypeSchema = z.enum([
   'formula',
   'doc_meta',
   'qna',
+  'law_reference',
+  'callout',
+  'quote',
+  'code',
+  'cost_table',
+  'construction_detail',
 ]);
 
 export const blockInputSchema = z
@@ -184,6 +257,12 @@ export type TableContent = z.infer<typeof tableContentSchema>;
 export type FormulaContent = z.infer<typeof formulaContentSchema>;
 export type DocMetaContent = z.infer<typeof docMetaContentSchema>;
 export type QnaContent = z.infer<typeof qnaContentSchema>;
+export type LawReferenceContent = z.infer<typeof lawReferenceContentSchema>;
+export type CalloutContent = z.infer<typeof calloutContentSchema>;
+export type QuoteContent = z.infer<typeof quoteContentSchema>;
+export type CodeContent = z.infer<typeof codeContentSchema>;
+export type CostTableContent = z.infer<typeof costTableContentSchema>;
+export type ConstructionDetailContent = z.infer<typeof constructionDetailContentSchema>;
 
 /** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
 export function parseBlockContent(type: string, content: unknown) {

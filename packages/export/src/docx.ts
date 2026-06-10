@@ -12,13 +12,21 @@ import {
   WidthType,
 } from 'docx';
 import {
+  CALLOUT_VARIANT_LABELS,
   CHART_TYPE_LABELS,
+  calloutData,
   chartData,
   checklistItems,
+  codeData,
   collectSources,
+  constructionDetailData,
+  costTableData,
   docMetaEntries,
   formulaData,
+  lawReferenceData,
+  lawReferenceHeading,
   qnaItems,
+  quoteData,
   safeFilename,
   tableData,
   type DocumentForExport,
@@ -210,6 +218,140 @@ export class DocxExporter implements Exporter {
           break;
         case 'source_reference':
           break;
+        case 'law_reference': {
+          const law = lawReferenceData(block.content);
+          if (!law) break;
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '법규 ', bold: true }),
+                new TextRun({ text: lawReferenceHeading(law), bold: true }),
+              ],
+            }),
+          );
+          if (law.summary) {
+            children.push(new Paragraph({ children: [new TextRun(law.summary)] }));
+          }
+          if (law.link) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `원문: ${law.link}`, color: '52525b' })],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'callout': {
+          const callout = calloutData(block.content);
+          const variantLabel = CALLOUT_VARIANT_LABELS[callout.variant] ?? callout.variant;
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `[${variantLabel}]${callout.title ? ` ${callout.title}` : ''}`,
+                  bold: true,
+                }),
+              ],
+            }),
+          );
+          children.push(
+            new Paragraph({
+              spacing: { after: 160 },
+              children: [new TextRun(callout.text)],
+            }),
+          );
+          break;
+        }
+        case 'quote': {
+          const quote = quoteData(block.content);
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `“${quote.text}”`, italics: true })],
+            }),
+          );
+          if (quote.attribution) {
+            children.push(
+              new Paragraph({
+                spacing: { after: 160 },
+                children: [new TextRun({ text: `— ${quote.attribution}`, color: '71717a' })],
+              }),
+            );
+          }
+          break;
+        }
+        case 'code': {
+          const code = codeData(block.content);
+          if (code.language) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `code (${code.language})`, color: '71717a' })],
+              }),
+            );
+          }
+          for (const line of code.code.split('\n')) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: line, font: 'Courier New' })],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'cost_table': {
+          const cost = costTableData(block.content);
+          if (cost.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: cost.title, bold: true })] }),
+            );
+          }
+          children.push(buildDocxTable(cost.headers, cost.rows));
+          if (cost.note) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: cost.note, color: '71717a' })],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
+        case 'construction_detail': {
+          const detail = constructionDetailData(block.content);
+          if (detail.title) {
+            children.push(
+              new Paragraph({ children: [new TextRun({ text: detail.title, bold: true })] }),
+            );
+          }
+          if (detail.imageUrl || detail.imagePrompt) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `[상세도${detail.imagePrompt ? `: ${detail.imagePrompt}` : ''}]`,
+                    italics: true,
+                    color: '71717a',
+                  }),
+                ],
+              }),
+            );
+          }
+          detail.steps.forEach((step, i) => {
+            children.push(
+              new Paragraph({ children: [new TextRun(`${i + 1}. ${step}`)] }),
+            );
+          });
+          if (detail.notes) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: `주의: ${detail.notes}`, color: '71717a' })],
+              }),
+            );
+          }
+          children.push(new Paragraph({ children: [] }));
+          break;
+        }
         default:
           break;
       }

@@ -149,3 +149,154 @@ export type QnaItem = { question: string; answer: string; basis?: string };
 export function qnaItems(content: Record<string, unknown>): QnaItem[] {
   return Array.isArray(content.items) ? (content.items as QnaItem[]) : [];
 }
+
+export type LawReferenceData = {
+  law: string;
+  article?: string;
+  clause?: string;
+  summary?: string;
+  link?: string;
+};
+
+export function lawReferenceData(content: Record<string, unknown>): LawReferenceData | null {
+  if (typeof content.law !== 'string' || !content.law) return null;
+  return {
+    law: content.law,
+    article: typeof content.article === 'string' && content.article ? content.article : undefined,
+    clause: typeof content.clause === 'string' && content.clause ? content.clause : undefined,
+    summary: typeof content.summary === 'string' && content.summary ? content.summary : undefined,
+    link: typeof content.link === 'string' && content.link ? content.link : undefined,
+  };
+}
+
+/** "{law} {article} {clause}" 형태의 머리말 문자열 */
+export function lawReferenceHeading(data: LawReferenceData): string {
+  return [data.law, data.article, data.clause].filter(Boolean).join(' ');
+}
+
+export type CalloutData = { variant: string; title?: string; text: string };
+
+export const CALLOUT_VARIANT_LABELS: Record<string, string> = {
+  info: '정보',
+  warning: '주의',
+  tip: '팁',
+  danger: '경고',
+};
+
+export function calloutData(content: Record<string, unknown>): CalloutData {
+  return {
+    variant: typeof content.variant === 'string' ? content.variant : 'info',
+    title: typeof content.title === 'string' && content.title ? content.title : undefined,
+    text: typeof content.text === 'string' ? content.text : '',
+  };
+}
+
+export type QuoteData = { text: string; attribution?: string };
+
+export function quoteData(content: Record<string, unknown>): QuoteData {
+  return {
+    text: typeof content.text === 'string' ? content.text : '',
+    attribution:
+      typeof content.attribution === 'string' && content.attribution
+        ? content.attribution
+        : undefined,
+  };
+}
+
+export type CodeData = { language?: string; code: string };
+
+export function codeData(content: Record<string, unknown>): CodeData {
+  return {
+    language:
+      typeof content.language === 'string' && content.language ? content.language : undefined,
+    code: typeof content.code === 'string' ? content.code : '',
+  };
+}
+
+export type CostTableItem = {
+  name: string;
+  spec?: string;
+  quantity: number;
+  unit?: string;
+  unitPrice: number;
+};
+
+export type CostTableData = {
+  title?: string;
+  currency: string;
+  items: CostTableItem[];
+  note?: string;
+  /** 헤더와 본문/합계 행을 표 형태로 계산해 둔 결과 */
+  headers: string[];
+  rows: string[][];
+  total: number;
+};
+
+const COST_TABLE_HEADERS = ['항목', '규격', '수량', '단위', '단가', '금액'];
+
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+export function costTableData(content: Record<string, unknown>): CostTableData {
+  const currency =
+    typeof content.currency === 'string' && content.currency ? content.currency : '원';
+  const items: CostTableItem[] = Array.isArray(content.items)
+    ? (content.items as Record<string, unknown>[]).map((it) => ({
+        name: typeof it.name === 'string' ? it.name : '',
+        spec: typeof it.spec === 'string' && it.spec ? it.spec : undefined,
+        quantity: num(it.quantity),
+        unit: typeof it.unit === 'string' && it.unit ? it.unit : undefined,
+        unitPrice: num(it.unitPrice),
+      }))
+    : [];
+  let total = 0;
+  const rows: string[][] = items.map((it) => {
+    const amount = it.quantity * it.unitPrice;
+    total += amount;
+    return [
+      it.name,
+      it.spec ?? '',
+      it.quantity.toLocaleString('ko-KR'),
+      it.unit ?? '',
+      it.unitPrice.toLocaleString('ko-KR'),
+      amount.toLocaleString('ko-KR'),
+    ];
+  });
+  rows.push(['합계', '', '', '', '', total.toLocaleString('ko-KR')]);
+  return {
+    title: typeof content.title === 'string' && content.title ? content.title : undefined,
+    currency,
+    items,
+    note: typeof content.note === 'string' && content.note ? content.note : undefined,
+    headers: COST_TABLE_HEADERS,
+    rows,
+    total,
+  };
+}
+
+export type ConstructionDetailData = {
+  title?: string;
+  imageUrl?: string;
+  imagePrompt?: string;
+  steps: string[];
+  notes?: string;
+};
+
+export function constructionDetailData(
+  content: Record<string, unknown>,
+): ConstructionDetailData {
+  return {
+    title: typeof content.title === 'string' && content.title ? content.title : undefined,
+    imageUrl:
+      typeof content.imageUrl === 'string' && content.imageUrl ? content.imageUrl : undefined,
+    imagePrompt:
+      typeof content.imagePrompt === 'string' && content.imagePrompt
+        ? content.imagePrompt
+        : undefined,
+    steps: Array.isArray(content.steps)
+      ? (content.steps as unknown[]).filter((s): s is string => typeof s === 'string')
+      : [],
+    notes: typeof content.notes === 'string' && content.notes ? content.notes : undefined,
+  };
+}

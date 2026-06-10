@@ -61,6 +61,23 @@ const NEW_BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
     title: '현장 Q&A',
     items: [{ question: '', answer: '', basis: '' }],
   },
+  [BlockTypes.LAW_REFERENCE]: { law: '', article: '', clause: '', summary: '', link: '' },
+  [BlockTypes.CALLOUT]: { variant: 'info', title: '', text: '' },
+  [BlockTypes.QUOTE]: { text: '', attribution: '' },
+  [BlockTypes.CODE]: { language: '', code: '' },
+  [BlockTypes.COST_TABLE]: {
+    title: '',
+    currency: '원',
+    items: [{ name: '', spec: '', quantity: 1, unit: '', unitPrice: 0 }],
+    note: '',
+  },
+  [BlockTypes.CONSTRUCTION_DETAIL]: {
+    title: '',
+    imageUrl: '',
+    imagePrompt: '',
+    steps: [''],
+    notes: '',
+  },
 };
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -75,6 +92,12 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   formula: '계산식',
   doc_meta: '문서정보',
   qna: 'Q&A',
+  law_reference: '법규',
+  callout: '강조',
+  quote: '인용',
+  code: '코드',
+  cost_table: '견적표',
+  construction_detail: '시공상세',
 };
 
 type Props = {
