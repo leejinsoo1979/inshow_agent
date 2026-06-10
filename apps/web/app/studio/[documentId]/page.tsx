@@ -7,6 +7,7 @@ import { BlockEditor, type EditorBlock } from '@/components/editor/BlockEditor';
 import { CanvasView } from '@/components/editor/CanvasView';
 import { BlockOutline } from '@/components/studio/BlockOutline';
 import { NavRail } from '@/components/studio/NavRail';
+import { ResizeHandle, useResizable } from '@/components/studio/Resizable';
 import { TopBar } from '@/components/studio/TopBar';
 
 type DocMeta = { id: string; projectId: string; title: string; status: string };
@@ -45,6 +46,20 @@ export default function DocumentStudioPage({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [addMenuKey, setAddMenuKey] = useState(0);
   const [viewMode, setViewMode] = useState<'doc' | 'canvas'>('doc');
+  const chatPanel = useResizable({
+    initial: 340,
+    min: 280,
+    max: 560,
+    side: 'left',
+    storageKey: 'archi.studio.chat.w',
+  });
+  const outlinePanel = useResizable({
+    initial: 224,
+    min: 180,
+    max: 420,
+    side: 'right',
+    storageKey: 'archi.studio.outline.w',
+  });
 
   const handleDocumentChanged = useCallback(() => setReloadKey((k) => k + 1), []);
 
@@ -75,14 +90,15 @@ export default function DocumentStudioPage({
     <div className="flex h-screen overflow-hidden bg-zinc-100">
       <NavRail />
 
-      {/* 좌측 AI 에이전트 패널 */}
-      <aside className="w-[340px] shrink-0">
+      {/* 좌측 AI 에이전트 패널 (드래그로 너비 조절) */}
+      <aside style={{ width: chatPanel.width }} className="relative shrink-0 overflow-hidden">
         <AIChatPanel
           documentId={documentId}
           selectedBlockId={selectedBlockId}
           selectedBlockLabel={selectedBlockLabel}
           onDocumentChanged={handleDocumentChanged}
         />
+        <ResizeHandle side="left" onPointerDown={chatPanel.onPointerDown} />
       </aside>
 
       {/* 중앙: 상단 바 + 문서 캔버스 */}
@@ -152,14 +168,17 @@ export default function DocumentStudioPage({
         </div>
       </main>
 
-      {/* 우측 블록 패널 */}
-      <BlockOutline
-        blocks={blocks}
-        selectedBlockId={selectedBlockId}
-        onSelectBlock={setSelectedBlockId}
-        onAddBlock={() => setAddMenuKey((k) => k + 1)}
-        onDeleteBlock={handleDeleteBlock}
-      />
+      {/* 우측 블록 패널 (드래그로 너비 조절) */}
+      <aside style={{ width: outlinePanel.width }} className="relative shrink-0 overflow-hidden">
+        <ResizeHandle side="right" onPointerDown={outlinePanel.onPointerDown} />
+        <BlockOutline
+          blocks={blocks}
+          selectedBlockId={selectedBlockId}
+          onSelectBlock={setSelectedBlockId}
+          onAddBlock={() => setAddMenuKey((k) => k + 1)}
+          onDeleteBlock={handleDeleteBlock}
+        />
+      </aside>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { IconType } from 'react-icons';
+import { ResizeHandle, useResizable } from './Resizable';
 import {
   FiCheckSquare,
   FiCpu,
@@ -30,9 +31,19 @@ const NAV_ITEMS: { icon: IconType; label: string; href: string; exact?: boolean 
 /** 좌측 다크 네비게이션 (참고 UI: docs/design/images/studio-screen.png — 컬러는 화이트&블랙) */
 export function NavRail() {
   const pathname = usePathname();
+  const { width, onPointerDown } = useResizable({
+    initial: 176,
+    min: 72,
+    max: 280,
+    side: 'left',
+    storageKey: 'archi.nav.w',
+  });
 
   return (
-    <nav className="flex w-44 shrink-0 flex-col bg-[#111114] text-zinc-400">
+    <nav
+      style={{ width }}
+      className="relative flex shrink-0 flex-col overflow-hidden bg-[#111114] text-zinc-400"
+    >
       <Link href="/" className="flex items-center gap-2 px-4 py-4">
         <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-xs font-black text-zinc-900">
           A
@@ -44,7 +55,7 @@ export function NavRail() {
         </span>
       </Link>
 
-      <div className="mt-2 flex flex-1 flex-col gap-0.5 px-2">
+      <div className="mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2">
         {NAV_ITEMS.map((item, i) => {
           const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           // 같은 href가 여러 개일 때 첫 항목만 active 표시
@@ -78,6 +89,8 @@ export function NavRail() {
           업그레이드
         </button>
       </div>
+
+      <ResizeHandle side="left" onPointerDown={onPointerDown} dark />
     </nav>
   );
 }

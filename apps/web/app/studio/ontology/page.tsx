@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
+import { ResizeHandle, useResizable } from '@/components/studio/Resizable';
 import { GraphView, type GraphEdgeData, type GraphNodeData } from '@/components/ontology/GraphView';
 
 type Me = { organizations: { workspaces: { id: string; name: string }[] }[] };
@@ -46,6 +47,13 @@ export default function OntologyPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
+  const detailPanel = useResizable({
+    initial: 384,
+    min: 280,
+    max: 620,
+    side: 'right',
+    storageKey: 'archi.onto.panel.w',
+  });
 
   // 옵시디언 노트 패널 — 노드 설명(description)을 마크다운으로 편집
   const [note, setNote] = useState('');
@@ -291,7 +299,11 @@ export default function OntologyPage() {
 
       {/* 우측 도킹 노트 패널 — 옵시디언 마크다운 에디터 스타일 */}
       {selected && (
-        <aside className="flex w-96 shrink-0 flex-col border-l border-white/10 bg-[#16161b] text-zinc-200">
+        <aside
+          style={{ width: detailPanel.width }}
+          className="relative flex shrink-0 flex-col border-l border-white/10 bg-[#16161b] text-zinc-200"
+        >
+          <ResizeHandle side="right" onPointerDown={detailPanel.onPointerDown} dark />
           {/* 헤더: 제목 + 타입 + 닫기 */}
           <div className="flex items-start justify-between gap-2 border-b border-white/10 px-5 py-4">
             <div className="min-w-0">

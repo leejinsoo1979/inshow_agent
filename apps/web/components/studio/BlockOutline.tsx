@@ -122,7 +122,7 @@ export function BlockOutline({
   }
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-l border-zinc-200 bg-white">
+    <aside className="flex h-full w-full flex-col border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-4 py-3">
         <h2 className="text-xs font-bold text-zinc-700">문서 구조</h2>
       </div>
