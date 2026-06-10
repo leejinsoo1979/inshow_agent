@@ -901,7 +901,7 @@ export default function LandingPage() {
             첫 초안을 제안합니다. 승인 전에는 아무것도 바뀌지 않습니다.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <Link href="/studio" className={`px-7 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_PRIMARY}`}>
+            <Link href="/login" className={`px-7 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_PRIMARY}`}>
               첫 문서 만들기&nbsp;&nbsp;→
             </Link>
             <Link href="/studio/settings" className={`px-7 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_OUTLINE}`}>
