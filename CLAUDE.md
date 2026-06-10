@@ -17,6 +17,8 @@ Build a production-grade AI workspace for architecture and interior professional
 
 The UI language is Korean by default.
 
+**UI 레퍼런스:** 메인 스튜디오(에이전트) 화면의 시각/구조 스펙은 [docs/design/UI_STUDIO_REFERENCE.md](docs/design/UI_STUDIO_REFERENCE.md) 참고. 화면 구현(`/studio`) 시 이 문서의 레이아웃·블록 타입·디자인 토큰을 기준으로 한다.
+
 ## 2. Critical Product Rules
 
 1. The document canvas is the main artifact. Chat is the control surface.

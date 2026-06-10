@@ -1,0 +1,154 @@
+// ARCHI Agent Studio - Prisma schema
+// DATA_MODEL.md 기준. MVP에 필요한 모델부터 단계적으로 추가한다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  memberships  Membership[]
+  chatMessages ChatMessage[]
+  auditLogs    AuditLog[]
+}
+
+model Organization {
+  id         String       @id @default(cuid())
+  name       String
+  createdAt  DateTime     @default(now())
+  workspaces Workspace[]
+  members    Membership[]
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+  KNOWLEDGE_REVIEWER
+}
+
+model Workspace {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  projects       Project[]
+}
+
+model Project {
+  id          String     @id @default(cuid())
+  workspaceId String
+  name        String
+  clientName  String?
+  location    String?
+  createdAt   DateTime   @default(now())
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  documents   Document[]
+}
+
+model Document {
+  id           String         @id @default(cuid())
+  projectId    String
+  title        String
+  type         DocumentType   @default(BLOG_POST)
+  status       DocumentStatus @default(DRAFT)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  project      Project        @relation(fields: [projectId], references: [id])
+  blocks       DocumentBlock[]
+  chatSessions ChatSession[]
+}
+
+enum DocumentType {
+  BLOG_POST
+  PROPOSAL
+  REPORT
+  SNS_CAPTION
+  KNOWLEDGE_NOTE
+}
+
+enum DocumentStatus {
+  DRAFT
+  NEEDS_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+model DocumentBlock {
+  id         String   @id @default(cuid())
+  documentId String
+  type       String
+  sortOrder  Int
+  content    Json
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, sortOrder])
+}
+
+model ChatSession {
+  id         String        @id @default(cuid())
+  documentId String?
+  projectId  String?
+  title      String?
+  createdAt  DateTime      @default(now())
+  document   Document?     @relation(fields: [documentId], references: [id])
+  messages   ChatMessage[]
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  chatSessionId String
+  userId        String?
+  role          MessageRole
+  content       Json
+  createdAt     DateTime    @default(now())
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  user          User?       @relation(fields: [userId], references: [id])
+
+  @@index([chatSessionId, createdAt])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([targetType, targetId])
+}
