@@ -30,17 +30,18 @@ export class MockImageProvider implements ImageProvider {
   }
 }
 
+// 화이트&블랙 디자인에 맞춘 그레이스케일 팔레트
 const PALETTES = [
-  ['#8b7cf6', '#5b4ddb'],
-  ['#f6a87c', '#db7c4d'],
-  ['#7cc8f6', '#4d8bdb'],
-  ['#9bdb89', '#5fa84e'],
-  ['#dbc54d', '#a8923a'],
-  ['#db4d7c', '#a83a5f'],
-  ['#4ddbc5', '#3aa892'],
-  ['#b44ddb', '#8a3aa8'],
-  ['#778899', '#4a5a6a'],
-  ['#e0b89a', '#b08a6a'],
+  ['#3f3f46', '#18181b'],
+  ['#52525b', '#27272a'],
+  ['#71717a', '#3f3f46'],
+  ['#a1a1aa', '#52525b'],
+  ['#d4d4d8', '#71717a'],
+  ['#27272a', '#09090b'],
+  ['#9a9aa3', '#4a4a52'],
+  ['#6b6b74', '#2e2e33'],
+  ['#828891', '#3a4046'],
+  ['#c0c0c6', '#8a8a92'],
 ];
 
 function escapeXml(text: string): string {

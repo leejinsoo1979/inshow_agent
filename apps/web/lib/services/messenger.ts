@@ -85,7 +85,7 @@ export async function postMessage(
       data: {
         channelId,
         authorType: 'system',
-        text: `📋 ${agentLabel}에게 업무가 배정되었습니다: "${task.title}" (Task #${task.id.slice(-6)})`,
+        text: `${agentLabel}에게 업무가 배정되었습니다: "${task.title}" (Task #${task.id.slice(-6)})`,
       },
     });
   }

@@ -27,9 +27,9 @@ type QueryResult = {
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   PENDING_PROCESSING: { label: '처리 대기', cls: 'bg-zinc-100 text-zinc-600' },
-  PROCESSING: { label: '처리 중', cls: 'bg-blue-100 text-blue-700' },
-  PENDING_REVIEW: { label: '검토 대기', cls: 'bg-amber-100 text-amber-700' },
-  APPROVED: { label: '승인됨', cls: 'bg-emerald-100 text-emerald-700' },
+  PROCESSING: { label: '처리 중', cls: 'bg-zinc-200 text-zinc-700' },
+  PENDING_REVIEW: { label: '검토 대기', cls: 'bg-zinc-300 text-zinc-800' },
+  APPROVED: { label: '승인됨', cls: 'bg-zinc-900 text-white' },
   FAILED: { label: '실패', cls: 'bg-red-100 text-red-700' },
   ARCHIVED: { label: '보관됨', cls: 'bg-zinc-100 text-zinc-500' },
 };
@@ -151,7 +151,7 @@ export default function KnowledgePage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 업로드
               </button>
@@ -196,7 +196,7 @@ export default function KnowledgePage() {
                           <button
                             onClick={() => handleAction(source.id, 'approve')}
                             disabled={busy}
-                            className="rounded-md bg-emerald-600 px-3 py-1 text-xs text-white disabled:opacity-50"
+                            className="rounded-md bg-zinc-900 px-3 py-1 text-xs text-white disabled:opacity-50"
                           >
                             승인
                           </button>
@@ -244,7 +244,7 @@ export default function KnowledgePage() {
               <button
                 type="submit"
                 disabled={busy || !query.trim()}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 질문
               </button>
@@ -259,15 +259,15 @@ export default function KnowledgePage() {
                     {queryResult.citations.map((citation) => (
                       <li
                         key={citation.chunkId}
-                        className="rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 text-xs"
+                        className="rounded-lg border-l-4 border-zinc-400 bg-zinc-50 p-3 text-xs"
                       >
-                        <p className="font-semibold text-amber-800">
+                        <p className="font-semibold text-zinc-800">
                           {citation.title}
-                          <span className="ml-2 font-normal text-amber-600">
+                          <span className="ml-2 font-normal text-zinc-500">
                             관련도 {(citation.score * 100).toFixed(0)}%
                           </span>
                         </p>
-                        <p className="mt-1 text-amber-700">{citation.quote}…</p>
+                        <p className="mt-1 text-zinc-600">{citation.quote}…</p>
                       </li>
                     ))}
                   </ul>

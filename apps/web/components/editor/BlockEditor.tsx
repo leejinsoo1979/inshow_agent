@@ -205,7 +205,7 @@ export function BlockEditor({
                 onClick={() => onSelectBlock(block.id)}
                 className={`group relative rounded-lg border p-3 transition ${
                   selectedBlockId === block.id
-                    ? 'border-blue-400 bg-blue-50/40'
+                    ? 'border-zinc-900 bg-zinc-50'
                     : 'border-transparent hover:border-zinc-200'
                 }`}
               >
@@ -240,7 +240,7 @@ export function BlockEditor({
                           e.stopPropagation();
                           setInpaintTarget(block);
                         }}
-                        className="px-1 text-zinc-500 hover:text-violet-600"
+                        className="px-1 text-zinc-500 hover:text-zinc-900"
                         aria-label="이미지 편집"
                         title="이미지 편집 (인페인트)"
                       >
@@ -287,9 +287,9 @@ export function BlockEditor({
                 setAddMenuOpen(false);
                 setImageModalOpen(true);
               }}
-              className="border-t border-zinc-100 px-4 py-2 text-left text-sm font-semibold text-violet-600 hover:bg-violet-50"
+              className="border-t border-zinc-100 px-4 py-2 text-left text-sm font-semibold text-zinc-900 hover:bg-zinc-100"
             >
-              ✨ AI 이미지 생성
+              AI 이미지 생성
             </button>
           </div>
         )}

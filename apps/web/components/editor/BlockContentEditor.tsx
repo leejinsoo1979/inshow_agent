@@ -137,7 +137,7 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
     case 'source_reference': {
       const c = content as unknown as SourceReferenceContent;
       return (
-        <div className="flex flex-col gap-1 rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3">
+        <div className="flex flex-col gap-1 rounded-lg border-l-4 border-zinc-400 bg-zinc-50 p-3">
           <input
             value={c.title}
             placeholder="출처 제목"
@@ -152,7 +152,7 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
             className="resize-none bg-transparent text-sm outline-none"
           />
           {(c.citations ?? []).length > 0 && (
-            <p className="text-xs text-amber-700">인용 {c.citations.length}건 연결됨</p>
+            <p className="text-xs text-zinc-600">인용 {c.citations.length}건 연결됨</p>
           )}
         </div>
       );

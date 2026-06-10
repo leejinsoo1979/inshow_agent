@@ -158,7 +158,7 @@ export default function MessengerPage() {
                 onClick={() => setChannelId(channel.id)}
                 className={`w-full rounded-md px-3 py-1.5 text-left text-sm ${
                   channelId === channel.id
-                    ? 'bg-violet-50 font-semibold text-violet-700'
+                    ? 'bg-zinc-100 font-semibold text-zinc-900'
                     : 'text-zinc-600 hover:bg-zinc-100'
                 }`}
               >
@@ -201,7 +201,7 @@ export default function MessengerPage() {
                 key={message.id}
                 className={`max-w-xl rounded-xl px-3.5 py-2 text-sm ${
                   message.authorType === 'system'
-                    ? 'mx-auto bg-violet-100 text-violet-800'
+                    ? 'mx-auto bg-zinc-200 text-zinc-700'
                     : 'bg-white shadow-sm'
                 }`}
               >
@@ -222,7 +222,7 @@ export default function MessengerPage() {
               <button
                 type="submit"
                 disabled={!text.trim()}
-                className="rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
               >
                 전송
               </button>
@@ -245,7 +245,7 @@ export default function MessengerPage() {
               <p className="mb-1 text-sm font-medium leading-5">{task.title}</p>
               <div className="mb-2 flex items-center gap-2 text-xs text-zinc-500">
                 {task.assigneeAgent && (
-                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-violet-700">
+                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-700">
                     {AGENT_LABELS[task.assigneeAgent] ?? task.assigneeAgent}
                   </span>
                 )}
@@ -264,9 +264,9 @@ export default function MessengerPage() {
               {task.outputDocumentId ? (
                 <Link
                   href={`/studio/${task.outputDocumentId}`}
-                  className="text-xs font-semibold text-violet-600 hover:underline"
+                  className="text-xs font-semibold text-zinc-900 underline hover:text-zinc-600"
                 >
-                  📄 산출물 문서 열기
+                  산출물 문서 열기 →
                 </Link>
               ) : (
                 <div className="flex gap-1">

@@ -54,7 +54,7 @@ export function InpaintModal({
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * CANVAS_W;
     const y = ((e.clientY - rect.top) / rect.height) * CANVAS_H;
-    ctx.fillStyle = 'rgba(139, 92, 246, 0.6)';
+    ctx.fillStyle = 'rgba(24, 24, 27, 0.55)';
     ctx.beginPath();
     ctx.arc(x, y, 18, 0, Math.PI * 2);
     ctx.fill();
@@ -174,7 +174,7 @@ export function InpaintModal({
               <button
                 type="submit"
                 disabled={busy || !prompt.trim()}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {busy ? '생성 중...' : '인페인트 실행'}
               </button>
@@ -188,8 +188,8 @@ export function InpaintModal({
                 <figcaption className="mt-1 text-center text-xs text-zinc-500">수정 전</figcaption>
               </figure>
               <figure>
-                <img src={afterUrl} alt="수정 후" className="aspect-video w-full rounded-xl border-2 border-violet-500 object-cover" />
-                <figcaption className="mt-1 text-center text-xs font-semibold text-violet-600">
+                <img src={afterUrl} alt="수정 후" className="aspect-video w-full rounded-xl border-2 border-zinc-900 object-cover" />
+                <figcaption className="mt-1 text-center text-xs font-semibold text-zinc-900">
                   수정 후 (새 버전)
                 </figcaption>
               </figure>
@@ -198,7 +198,7 @@ export function InpaintModal({
               <button
                 onClick={handleApply}
                 disabled={busy}
-                className="flex-1 rounded-lg bg-violet-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                className="flex-1 rounded-lg bg-zinc-900 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 이 버전을 문서에 적용
               </button>

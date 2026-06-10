@@ -102,7 +102,7 @@ export function ImageGenerateModal({ projectId, onInsert, onClose }: Props) {
             <button
               type="submit"
               disabled={busy || !prompt.trim()}
-              className="ml-auto rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="ml-auto rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {busy ? '생성 중...' : '생성하기'}
             </button>
@@ -119,7 +119,7 @@ export function ImageGenerateModal({ projectId, onInsert, onClose }: Props) {
                   key={v.id}
                   onClick={() => setSelectedVersionId(v.id)}
                   className={`overflow-hidden rounded-xl border-2 ${
-                    selectedVersionId === v.id ? 'border-violet-600' : 'border-transparent'
+                    selectedVersionId === v.id ? 'border-zinc-900' : 'border-transparent'
                   }`}
                 >
                   <img src={v.url} alt={v.prompt ?? 'AI 생성 이미지'} className="aspect-video w-full object-cover" />

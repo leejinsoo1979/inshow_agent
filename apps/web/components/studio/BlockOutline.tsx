@@ -65,7 +65,7 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
               key={format}
               onClick={() => handleExport(format)}
               disabled={exporting !== null}
-              className="flex-1 rounded-md bg-violet-600 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+              className="flex-1 rounded-md bg-zinc-900 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
             >
               {exporting === format ? '...' : label}
             </button>
@@ -84,7 +84,7 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
                   onClick={() => onSelectBlock(block.id)}
                   className={`w-full rounded-md px-2 py-1.5 text-left text-xs ${
                     selectedBlockId === block.id
-                      ? 'bg-violet-50 text-violet-700'
+                      ? 'bg-zinc-100 text-zinc-900'
                       : 'text-zinc-600 hover:bg-zinc-100'
                   }`}
                 >

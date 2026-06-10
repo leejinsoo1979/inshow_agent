@@ -144,7 +144,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
   return (
     <div className="flex h-full flex-col bg-[#1c1c2a] text-zinc-100">
       <header className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600 text-xs font-bold">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs font-bold text-zinc-900">
           AI
         </span>
         <div>
@@ -159,7 +159,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
         {items.map((item, i) => {
           if (item.kind === 'user') {
             return (
-              <div key={i} className="ml-8 rounded-2xl rounded-tr-sm bg-violet-600 px-3.5 py-2.5 text-sm">
+              <div key={i} className="ml-8 rounded-2xl rounded-tr-sm bg-white px-3.5 py-2.5 text-sm text-zinc-900">
                 {item.text}
               </div>
             );
@@ -181,10 +181,10 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
                     href={source.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="block rounded-xl border border-white/10 bg-white/5 p-3 hover:border-violet-400/50"
+                    className="block rounded-xl border border-white/10 bg-white/5 p-3 hover:border-white/40"
                   >
                     <div className="mb-1 flex items-center gap-2">
-                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                      <span className="rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-200">
                         {source.sourceType === 'official_law'
                           ? '공식 법령'
                           : source.sourceType === 'kcsc'
@@ -205,9 +205,9 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
           return (
             <div key={i} className="mr-4 space-y-2">
               {item.actions.map((action) => (
-                <div key={action.id} className="rounded-xl border border-violet-500/40 bg-violet-500/10 p-3">
+                <div key={action.id} className="rounded-xl border border-white/20 bg-white/5 p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-violet-300">
+                    <span className="text-xs font-semibold text-zinc-300">
                       {ACTION_LABELS[action.type] ?? action.type}
                     </span>
                     <span className="text-[10px] uppercase text-zinc-400">
@@ -219,7 +219,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
                     <div className="mt-2 flex gap-2">
                       <button
                         onClick={() => handleAction(action.id, 'approve')}
-                        className="flex-1 rounded-lg bg-violet-600 py-1.5 text-xs font-semibold hover:bg-violet-500"
+                        className="flex-1 rounded-lg bg-white py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-200"
                       >
                         승인하고 적용
                       </button>
@@ -262,7 +262,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold disabled:opacity-40"
+            className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-zinc-900 disabled:opacity-40"
           >
             전송
           </button>

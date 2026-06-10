@@ -29,11 +29,11 @@ const VIEW_W = 860;
 const VIEW_H = 560;
 
 const TYPE_COLORS: Record<string, string> = {
-  space: '#0ea5e9',
-  method: '#8b5cf6',
-  material: '#10b981',
-  defect: '#ef4444',
-  regulation: '#f59e0b',
+  space: '#18181b',
+  method: '#3f3f46',
+  material: '#52525b',
+  defect: '#71717a',
+  regulation: '#a1a1aa',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -165,7 +165,7 @@ export default function OntologyPage() {
                   <button
                     onClick={handleSeed}
                     disabled={busy}
-                    className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
                     샘플 온톨로지 생성
                   </button>
@@ -185,7 +185,7 @@ export default function OntologyPage() {
                           y1={from.y}
                           x2={to.x}
                           y2={to.y}
-                          stroke={edge.status === 'APPROVED' ? '#a78bfa' : '#d4d4d8'}
+                          stroke={edge.status === 'APPROVED' ? '#18181b' : '#d4d4d8'}
                           strokeWidth={1.5}
                           strokeDasharray={edge.status === 'APPROVED' ? undefined : '4 3'}
                         />
@@ -267,9 +267,9 @@ export default function OntologyPage() {
                       <dt className="text-xs text-zinc-400">상태</dt>
                       <dd>
                         {selected.status === 'APPROVED' ? (
-                          <span className="text-emerald-600">승인됨</span>
+                          <span className="text-zinc-900 font-semibold">승인됨</span>
                         ) : (
-                          <span className="text-amber-600">후보</span>
+                          <span className="text-zinc-500">후보</span>
                         )}
                         {selected.confidence != null && (
                           <span className="ml-2 text-xs text-zinc-400">
@@ -309,7 +309,7 @@ export default function OntologyPage() {
                     <button
                       onClick={() => handleApprove(selected.id)}
                       disabled={busy}
-                      className="mt-4 w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      className="mt-4 w-full rounded-lg bg-zinc-900 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       승인 (관리자)
                     </button>
