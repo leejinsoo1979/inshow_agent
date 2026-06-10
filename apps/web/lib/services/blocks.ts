@@ -27,6 +27,15 @@ export async function addBlock(
 ) {
   await requireDocumentCapability(userId, documentId, Capabilities.EDIT_DOCUMENTS);
 
+  // 라우트 레이어와 별개로 서비스에서도 블록 스키마를 재검증한다 (AI action 등 내부 호출 경로 방어)
+  const parsedBlock = blockInputSchema.safeParse(input.block);
+  if (!parsedBlock.success) {
+    throw new AppError(ErrorCodes.VALIDATION_FAILED, {
+      message: `'${input.block.type}' 블록 내용이 올바르지 않습니다.`,
+      details: parsedBlock.error.issues,
+    });
+  }
+
   const block = await prisma.$transaction(async (tx) => {
     let sortOrder: number;
     if (input.afterBlockId) {
