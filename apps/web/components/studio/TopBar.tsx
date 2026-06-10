@@ -18,6 +18,7 @@ const EXPORT_FORMATS = [
   { format: 'markdown', label: 'Markdown — Notion/CMS' },
   { format: 'txt', label: 'TXT — 블로그/카페 복사' },
   { format: 'html', label: 'HTML — 홈페이지/랜딩' },
+  { format: 'json', label: 'JSON — 연동/백업/재가공' },
 ] as const;
 
 type Props = {

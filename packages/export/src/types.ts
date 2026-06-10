@@ -13,7 +13,7 @@ export type DocumentForExport = {
   blocks: ExportBlock[];
 };
 
-export type ExportFormat = 'txt' | 'markdown' | 'pdf' | 'docx' | 'html';
+export type ExportFormat = 'txt' | 'markdown' | 'pdf' | 'docx' | 'html' | 'json';
 
 export type ExportOptions = {
   /** PDF 한글 렌더링용 폰트 바이트 (호출자가 주입) */

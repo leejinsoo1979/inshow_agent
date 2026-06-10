@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HtmlExporter } from './html';
+import { JsonExporter } from './json';
 import { MarkdownExporter } from './markdown';
 import { PdfExporter } from './pdf';
 import { TxtExporter } from './txt';
@@ -155,6 +156,20 @@ describe('전문 블록 타입 내보내기', () => {
     const txt = new TextDecoder().decode((await new TxtExporter().export(professionalDocument)).data);
     expect(txt).toContain('건축물의 에너지절약설계기준');
     expect(txt).toContain('단열재');
+  });
+});
+
+describe('JsonExporter', () => {
+  it('블록 순서를 보존한 구조화 JSON을 생성한다', async () => {
+    const result = await new JsonExporter().export(sampleDocument);
+    expect(result.mimeType).toContain('application/json');
+    const parsed = JSON.parse(new TextDecoder().decode(result.data));
+    expect(parsed.title).toBe('34평 아파트 거실 리모델링');
+    expect(parsed.blocks).toHaveLength(7);
+    expect(parsed.blocks[0]).toMatchObject({ type: 'heading', sortOrder: 0 });
+    expect(parsed.blocks[1].sortOrder).toBe(1);
+    // content가 그대로 보존된다
+    expect(parsed.blocks[0].content.text).toBe('공간의 변신');
   });
 });
 

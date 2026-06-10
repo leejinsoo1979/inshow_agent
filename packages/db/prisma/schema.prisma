@@ -340,6 +340,7 @@ enum ExportFormat {
   PDF
   DOCX
   HTML
+  JSON
 }
 
 enum ExportStatus {
