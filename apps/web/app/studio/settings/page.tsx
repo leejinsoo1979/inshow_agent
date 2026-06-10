@@ -57,7 +57,7 @@ export default function SettingsPage() {
       const which = params.get('provider') === 'openai' ? 'ChatGPT' : 'Claude';
       setNotice(`${which} 계정이 연결되었습니다. 이제 AI 에이전트가 실제 모델로 응답합니다.`);
     } else if (oauth === 'error') {
-      setError(`Claude 계정 연결 실패: ${params.get('reason') ?? '알 수 없는 오류'}`);
+      setError(`LLM 계정 연결 실패: ${params.get('reason') ?? '알 수 없는 오류'}`);
     }
     if (oauth) {
       window.history.replaceState(null, '', '/studio/settings');

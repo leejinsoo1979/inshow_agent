@@ -4,7 +4,12 @@ import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { apiHandler } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { requireWorkspaceCapability } from '@/lib/authz';
-import { buildOAuthAuthorizeUrl, isOAuthProvider } from '@/lib/services/llm-config';
+import {
+  buildOAuthAuthorizeUrl,
+  isOAuthProvider,
+  oauthClientId,
+  OAUTH_PROVIDERS,
+} from '@/lib/services/llm-config';
 
 const OAUTH_COOKIE = 'archi_llm_oauth';
 
@@ -29,6 +34,18 @@ export const GET = apiHandler<Ctx>(async (request, { params }) => {
     throw new AppError(ErrorCodes.VALIDATION_FAILED, { message: 'workspaceId가 필요합니다.' });
   }
   await requireWorkspaceCapability(user.id, workspaceId, Capabilities.MANAGE_LLM_PROVIDERS);
+
+  // 클라이언트 ID 미설정이면 에러 JSON 대신 설정 화면으로 안내와 함께 복귀
+  if (!oauthClientId(provider)) {
+    const meta = OAUTH_PROVIDERS[provider];
+    const settingsUrl = new URL('/studio/settings', url.origin);
+    settingsUrl.searchParams.set('oauth', 'error');
+    settingsUrl.searchParams.set(
+      'reason',
+      `${meta.label} 계정 연결 미설정 — .env에 ${meta.clientIdEnv}를 추가한 뒤 서버를 재시작해 주세요. 그 전까지는 API 키 방식을 사용하세요.`,
+    );
+    return NextResponse.redirect(settingsUrl);
+  }
 
   const verifier = randomBytes(32).toString('base64url');
   const challenge = createHash('sha256').update(verifier).digest('base64url');
