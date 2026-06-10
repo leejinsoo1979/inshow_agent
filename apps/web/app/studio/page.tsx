@@ -121,6 +121,17 @@ export default function StudioPage() {
     return (
       <main className="mx-auto max-w-sm p-10">
         <h1 className="mb-6 text-2xl font-bold">ARCHI Agent Studio 로그인</h1>
+        <a
+          href="/login"
+          className="mb-3 block rounded-lg bg-zinc-900 py-2.5 text-center font-semibold text-white hover:bg-zinc-700"
+        >
+          소셜 계정으로 로그인
+        </a>
+        <div className="mb-3 flex items-center gap-3 text-xs text-zinc-400">
+          <span className="h-px flex-1 bg-zinc-200" />
+          또는 개발용 이메일 로그인
+          <span className="h-px flex-1 bg-zinc-200" />
+        </div>
         <form onSubmit={handleLogin} className="flex flex-col gap-3">
           <input
             type="email"

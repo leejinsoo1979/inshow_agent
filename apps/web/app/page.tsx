@@ -354,11 +354,11 @@ export default function LandingPage() {
           >
             {theme === 'dark' ? <FiSun size={13} aria-hidden /> : <FiMoon size={13} aria-hidden />}
           </button>
-          <Link href="/studio" className="hidden text-[10px] tracking-[0.2em] text-zinc-500 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white sm:inline">
-            SIGN_IN
+          <Link href="/login" className={`px-4 py-2 text-[11px] font-bold tracking-[0.15em] ${BTN_OUTLINE}`}>
+            로그인
           </Link>
-          <Link href="/studio" className={`px-4 py-2 text-[11px] font-bold tracking-[0.15em] ${BTN_PRIMARY}`}>
-            스튜디오_열기 →
+          <Link href="/login" className={`px-4 py-2 text-[11px] font-bold tracking-[0.15em] ${BTN_PRIMARY}`}>
+            무료로 시작 →
           </Link>
         </nav>
 
@@ -382,7 +382,7 @@ export default function LandingPage() {
               하나로 묶는 인프라입니다.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <Link href="/studio" className={`px-6 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_PRIMARY}`}>
+              <Link href="/login" className={`px-6 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_PRIMARY}`}>
                 첫 문서 만들기&nbsp;&nbsp;→
               </Link>
               <Link href="/studio/ontology" className={`px-6 py-3.5 text-[12px] font-bold tracking-[0.1em] ${BTN_OUTLINE}`}>
