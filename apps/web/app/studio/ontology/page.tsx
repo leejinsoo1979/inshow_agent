@@ -47,6 +47,10 @@ export default function OntologyPage() {
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
 
+  // 옵시디언 노트 패널 — 노드 설명(description)을 마크다운으로 편집
+  const [note, setNote] = useState('');
+  const [noteSaving, setNoteSaving] = useState<'idle' | 'saving' | 'saved'>('idle');
+
   // 옵시디언 '그래프 설정' 상태
   const [search, setSearch] = useState('');
   const [showLabels, setShowLabels] = useState(true);
@@ -94,6 +98,30 @@ export default function OntologyPage() {
       cancelled = true;
     };
   }, [selectedId]);
+
+  // 선택이 바뀌면 노트 편집기를 해당 노드의 설명으로 동기화
+  useEffect(() => {
+    const node = nodes.find((n) => n.id === selectedId);
+    setNote(node?.description ?? '');
+    setNoteSaving('idle');
+  }, [selectedId, nodes]);
+
+  const saveNote = useCallback(async () => {
+    if (!selectedId) return;
+    setNoteSaving('saving');
+    try {
+      await apiFetch(`/api/ontology/nodes/${selectedId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ description: note }),
+      });
+      setNodes((prev) =>
+        prev.map((n) => (n.id === selectedId ? { ...n, description: note } : n)),
+      );
+      setNoteSaving('saved');
+    } catch {
+      setNoteSaving('idle');
+    }
+  }, [selectedId, note]);
 
   async function handleApprove(nodeId: string) {
     if (busy || !workspaceId) return;
@@ -258,129 +286,166 @@ export default function OntologyPage() {
           )}
         </div>
 
-        {/* 우하단: 선택 노드 상세 */}
-        {selected && (
-          <div className="absolute bottom-4 right-4 w-64 rounded-xl border border-white/10 bg-[#1c1c24]/95 p-4 text-zinc-200 shadow-2xl backdrop-blur">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-white">{selected.label}</h2>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-400">
-                {TYPE_LABELS[selected.type] ?? selected.type}
-              </span>
-            </div>
-            <p className="mb-1 text-[11px]">
-              {selected.status === 'APPROVED' ? (
-                <span className="font-semibold text-white">승인됨</span>
-              ) : (
-                <span className="text-zinc-400">후보</span>
-              )}
-              {selected.confidence != null && (
-                <span className="ml-2 text-zinc-500">
-                  신뢰도 {(selected.confidence * 100).toFixed(0)}%
+      </main>
+
+      {/* 우측 도킹 노트 패널 — 옵시디언 마크다운 에디터 스타일 */}
+      {selected && (
+        <aside className="flex w-96 shrink-0 flex-col border-l border-white/10 bg-[#16161b] text-zinc-200">
+          {/* 헤더: 제목 + 타입 + 닫기 */}
+          <div className="flex items-start justify-between gap-2 border-b border-white/10 px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-lg font-bold text-white">{selected.label}</h1>
+                <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-400">
+                  {TYPE_LABELS[selected.type] ?? selected.type}
                 </span>
-              )}
-              <span className="ml-2 text-zinc-500">연결 {selectedConnections.length}</span>
-              {detail && detail.extractionCount > 0 && (
-                <span className="ml-2 text-zinc-500">추출 {detail.extractionCount}회</span>
-              )}
-            </p>
-            {selected.description && (
-              <p className="mb-2 text-[11px] leading-4 text-zinc-400">{selected.description}</p>
-            )}
-            <div className="mb-2 flex flex-wrap gap-1">
-              {(detail?.connections ?? []).slice(0, 6).map((connection) => (
-                <button
-                  key={connection.edgeId}
-                  onClick={() => setSelectedId(connection.nodeId)}
-                  className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
-                >
-                  {connection.relationType} → {connection.label}
-                </button>
-              ))}
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-500">
+                {selected.status === 'APPROVED' ? (
+                  <span className="text-zinc-300">승인됨</span>
+                ) : (
+                  <span>후보</span>
+                )}
+                {selected.confidence != null && (
+                  <span className="ml-2">신뢰도 {(selected.confidence * 100).toFixed(0)}%</span>
+                )}
+                <span className="ml-2">연결 {selectedConnections.length}</span>
+                {detail && detail.extractionCount > 0 && (
+                  <span className="ml-2">추출 {detail.extractionCount}회</span>
+                )}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedId(null)}
+              aria-label="패널 닫기"
+              className="shrink-0 rounded-md px-2 py-1 text-zinc-500 hover:bg-white/10 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {/* 마크다운 노트 편집기 */}
+            <div className="flex flex-col border-b border-white/10 px-5 py-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  노트
+                </span>
+                <span className="text-[10px] text-zinc-600">
+                  {noteSaving === 'saving' ? '저장 중…' : noteSaving === 'saved' ? '저장됨' : ''}
+                </span>
+              </div>
+              <textarea
+                value={note}
+                onChange={(e) => {
+                  setNote(e.target.value);
+                  setNoteSaving('idle');
+                }}
+                onBlur={saveNote}
+                placeholder={`# ${selected.label}\n\n이 노드에 대한 메모를 마크다운으로 작성하세요…`}
+                spellCheck={false}
+                className="min-h-[180px] w-full resize-y rounded-lg border border-white/10 bg-[#0f0f13] px-3 py-2.5 font-mono text-[13px] leading-6 text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-white/30"
+              />
             </div>
 
-            {/* 관련 키워드 (연결된 노드) — 옵시디언처럼 클릭해 이동 */}
+            {/* 관련 키워드 — 옵시디언 [[링크]] 스타일, 클릭해 이동 */}
             {detail && detail.relatedKeywords.length > 0 && (
-              <div className="mb-2 border-t border-white/10 pt-2">
-                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">관련 키워드</p>
-                <div className="flex flex-wrap gap-1">
-                  {detail.relatedKeywords.map((kw) => (
-                    <span
-                      key={kw}
-                      className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-300"
+              <div className="border-b border-white/10 px-5 py-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  관련 키워드
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(detail.connections ?? []).map((connection) => (
+                    <button
+                      key={connection.edgeId}
+                      onClick={() => setSelectedId(connection.nodeId)}
+                      title={connection.relationType}
+                      className="rounded bg-white/5 px-2 py-1 text-[11px] text-zinc-300 underline decoration-white/20 underline-offset-2 hover:bg-white/15 hover:text-white"
                     >
-                      {kw}
-                    </span>
+                      [[{connection.label}]]
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* 노드가 등장한 실제 문서 내용 (옵시디언 백링크 문맥) */}
+            {/* 백링크 문맥 — 노드가 등장한 실제 문서 내용 */}
             {detail && detail.excerpts.length > 0 && (
-              <div className="mb-2 max-h-44 overflow-y-auto border-t border-white/10 pt-2">
-                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">문서 내용</p>
-                <ul className="space-y-1.5">
+              <div className="border-b border-white/10 px-5 py-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  백링크 ({detail.excerpts.length})
+                </p>
+                <ul className="space-y-2.5">
                   {detail.excerpts.map((ex, i) => (
-                    <li key={i} className="rounded bg-white/5 p-2">
-                      <p className="mb-0.5 text-[9px] text-zinc-500">{ex.source}</p>
-                      <p className="text-[11px] leading-4 text-zinc-300">{ex.text}</p>
+                    <li
+                      key={i}
+                      className="border-l-2 border-white/15 pl-3 text-[12px] leading-5 text-zinc-400"
+                    >
+                      <p className="mb-0.5 text-[10px] text-zinc-600">{ex.source}</p>
+                      <p className="text-zinc-300">{ex.text}</p>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* 실제 provenance: 이 노드가 추출된 문서/지식소스 */}
+            {/* provenance: 추출된 문서 */}
             {detail && detail.documents.length > 0 && (
-              <div className="mb-2 border-t border-white/10 pt-2">
-                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">
+              <div className="border-b border-white/10 px-5 py-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
                   관련 문서 {detail.documents.length}
                 </p>
                 <ul className="space-y-1">
-                  {detail.documents.slice(0, 4).map((doc) => (
+                  {detail.documents.map((doc) => (
                     <li key={doc.id}>
                       <button
                         onClick={() => router.push(`/studio/${doc.id}`)}
-                        className="w-full truncate rounded bg-white/5 px-2 py-1 text-left text-[11px] text-zinc-300 hover:bg-white/15 hover:text-white"
+                        className="w-full truncate rounded px-2 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-white/10 hover:text-white"
                       >
-                        {doc.title}
+                        📄 {doc.title}
                       </button>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
+
+            {/* provenance: 지식소스 */}
             {detail && detail.knowledgeSources.length > 0 && (
-              <div className="mb-2 border-t border-white/10 pt-2">
-                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">
+              <div className="border-b border-white/10 px-5 py-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
                   관련 지식소스 {detail.knowledgeSources.length}
                 </p>
                 <ul className="space-y-1">
-                  {detail.knowledgeSources.slice(0, 3).map((source) => (
+                  {detail.knowledgeSources.map((source) => (
                     <li key={source.id}>
                       <button
                         onClick={() => router.push('/studio/knowledge')}
-                        className="w-full truncate rounded bg-white/5 px-2 py-1 text-left text-[11px] text-zinc-300 hover:bg-white/15 hover:text-white"
+                        className="w-full truncate rounded px-2 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-white/10 hover:text-white"
                       >
-                        {source.title}
+                        📚 {source.title}
                       </button>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
-            {selected.status === 'CANDIDATE' && (
+          </div>
+
+          {/* 후보 노드 승인 */}
+          {selected.status === 'CANDIDATE' && (
+            <div className="border-t border-white/10 p-4">
               <button
                 onClick={() => handleApprove(selected.id)}
                 disabled={busy}
-                className="w-full rounded-lg bg-white py-1.5 text-xs font-bold text-zinc-900 disabled:opacity-50"
+                className="w-full rounded-lg bg-white py-2 text-xs font-bold text-zinc-900 disabled:opacity-50"
               >
                 승인 (관리자)
               </button>
-            )}
-          </div>
-        )}
-      </main>
+            </div>
+          )}
+        </aside>
+      )}
     </div>
   );
 }
