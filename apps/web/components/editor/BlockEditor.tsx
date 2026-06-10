@@ -44,9 +44,17 @@ type Props = {
   onSelectBlock: (blockId: string | null) => void;
   /** AI action 실행 등 외부 변경 후 재로드 트리거 */
   reloadKey?: number;
+  /** 블록 목록 사이드바 등 외부에 현재 블록 상태 전달 */
+  onBlocksLoaded?: (blocks: EditorBlock[]) => void;
 };
 
-export function BlockEditor({ documentId, selectedBlockId, onSelectBlock, reloadKey }: Props) {
+export function BlockEditor({
+  documentId,
+  selectedBlockId,
+  onSelectBlock,
+  reloadKey,
+  onBlocksLoaded,
+}: Props) {
   const [doc, setDoc] = useState<DocumentWithBlocks | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +76,10 @@ export function BlockEditor({ documentId, selectedBlockId, onSelectBlock, reload
   useEffect(() => {
     load();
   }, [load, reloadKey]);
+
+  useEffect(() => {
+    if (doc) onBlocksLoaded?.(doc.blocks);
+  }, [doc, onBlocksLoaded]);
 
   /** 블록 내용 변경: 로컬 즉시 반영 + 800ms 디바운스 autosave */
   function handleBlockChange(blockId: string, content: Record<string, unknown>) {

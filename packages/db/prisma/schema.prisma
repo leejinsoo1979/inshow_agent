@@ -139,6 +139,29 @@ enum MessageRole {
   TOOL
 }
 
+model AgentAction {
+  id            String            @id @default(cuid())
+  chatSessionId String?
+  documentId    String?
+  type          String
+  payload       Json
+  riskLevel     String            @default("low")
+  requiresApproval Boolean        @default(true)
+  status        AgentActionStatus @default(PROPOSED)
+  createdAt     DateTime          @default(now())
+  executedAt    DateTime?
+
+  @@index([chatSessionId, status])
+}
+
+enum AgentActionStatus {
+  PROPOSED
+  APPROVED
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?

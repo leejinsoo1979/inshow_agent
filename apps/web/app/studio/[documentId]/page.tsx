@@ -1,8 +1,10 @@
 'use client';
 
-import { use, useState } from 'react';
-import Link from 'next/link';
-import { BlockEditor } from '@/components/editor/BlockEditor';
+import { use, useCallback, useState } from 'react';
+import { AIChatPanel } from '@/components/ai/AIChatPanel';
+import { BlockEditor, type EditorBlock } from '@/components/editor/BlockEditor';
+import { BlockOutline } from '@/components/studio/BlockOutline';
+import { NavRail } from '@/components/studio/NavRail';
 
 export default function DocumentStudioPage({
   params,
@@ -11,36 +13,43 @@ export default function DocumentStudioPage({
 }) {
   const { documentId } = use(params);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [reloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [blocks, setBlocks] = useState<EditorBlock[]>([]);
+
+  const handleDocumentChanged = useCallback(() => setReloadKey((k) => k + 1), []);
 
   return (
-    <div className="flex h-screen">
-      {/* 좌측 AI 패널 (Prompt 3에서 구현) */}
-      <aside className="flex w-96 flex-col border-r border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 px-4 py-3">
-          <Link href="/studio" className="text-sm text-zinc-500 hover:text-zinc-900">
-            ← 스튜디오
-          </Link>
-        </div>
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-zinc-400">
-          AI 채팅 패널은 다음 단계에서 추가됩니다.
-          {selectedBlockId && (
-            <span className="mt-2 block text-xs text-blue-500">
-              선택된 블록: {selectedBlockId}
-            </span>
-          )}
-        </div>
-      </aside>
+    <div className="flex h-screen overflow-hidden">
+      <NavRail />
 
-      {/* 우측 문서 캔버스 */}
-      <main className="flex-1 bg-zinc-50">
-        <BlockEditor
+      {/* 좌측 AI 에이전트 패널 */}
+      <aside className="w-[360px] shrink-0">
+        <AIChatPanel
           documentId={documentId}
           selectedBlockId={selectedBlockId}
-          onSelectBlock={setSelectedBlockId}
-          reloadKey={reloadKey}
+          onDocumentChanged={handleDocumentChanged}
         />
+      </aside>
+
+      {/* 중앙 문서 캔버스 */}
+      <main className="min-w-0 flex-1 bg-zinc-100">
+        <div className="mx-auto h-full max-w-3xl bg-white shadow-sm">
+          <BlockEditor
+            documentId={documentId}
+            selectedBlockId={selectedBlockId}
+            onSelectBlock={setSelectedBlockId}
+            reloadKey={reloadKey}
+            onBlocksLoaded={setBlocks}
+          />
+        </div>
       </main>
+
+      {/* 우측 블록 목록 */}
+      <BlockOutline
+        blocks={blocks}
+        selectedBlockId={selectedBlockId}
+        onSelectBlock={setSelectedBlockId}
+      />
     </div>
   );
 }
