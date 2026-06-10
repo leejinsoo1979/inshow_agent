@@ -70,11 +70,7 @@ export function BlockOutline({
                     <span className="block truncate">{blockSummary(block)}</span>
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm('이 블록을 삭제할까요? 본문에서도 사라집니다.')) {
-                        onDeleteBlock(block.id);
-                      }
-                    }}
+                    onClick={() => onDeleteBlock(block.id)}
                     title="블록 삭제"
                     aria-label="블록 삭제"
                     className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded transition ${
