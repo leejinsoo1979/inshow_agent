@@ -1,9 +1,10 @@
 import { prisma, type Prisma } from '@archi/db';
-import { extractFromUnits } from '@archi/ontology';
+import { extractFromUnits, type UnitExtraction } from '@archi/ontology';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireDocumentCapability, requireWorkspaceCapability } from '../authz';
 import { writeAuditLog } from '../audit';
+import { getLlmProviderForWorkspace } from './llm-config';
 
 export const createNodeSchema = z.object({
   workspaceId: z.string().min(1),
@@ -173,6 +174,79 @@ function blockTextForExtraction(content: Record<string, unknown>): string {
 
 type ExtractionStats = { nodesCreated: number; nodesLinked: number; edgesCreated: number };
 
+const llmExtractionSchema = z.object({
+  entities: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(60),
+        type: z.enum(['space', 'method', 'material', 'defect', 'regulation']),
+      }),
+    )
+    .max(40),
+  relations: z
+    .array(
+      z.object({
+        source: z.string().min(1),
+        target: z.string().min(1),
+        relation: z.string().min(1).max(30),
+      }),
+    )
+    .max(60)
+    .default([]),
+});
+
+function extractJsonObject(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end <= start) throw new Error('LLM 응답에서 JSON을 찾지 못했습니다.');
+  return candidate.slice(start, end + 1);
+}
+
+/**
+ * 추출기 선택: 워크스페이스에 실제 LLM이 등록되어 있으면 LLM이 실제 내용에서
+ * 엔티티/관계를 추출하고, 실패하거나 mock이면 도메인 사전 추출로 폴백한다.
+ */
+async function extractUnitsSmart(
+  workspaceId: string,
+  units: { unitId: string; text: string }[],
+): Promise<UnitExtraction[]> {
+  if (units.length === 0) return [];
+  const provider = await getLlmProviderForWorkspace(workspaceId);
+  if (provider.name === 'mock') return extractFromUnits(units);
+
+  try {
+    const text = units.map((u) => u.text).join('\n\n').slice(0, 8000);
+    const result = await provider.generateText({
+      system: [
+        '너는 건축·인테리어 지식그래프 추출기다. 입력 텍스트에서 핵심 개념을 추출한다.',
+        '반드시 JSON 객체 하나만 출력해라.',
+        '형식: {"entities":[{"label":"결로","type":"defect"}],"relations":[{"source":"단열재","target":"결로","relation":"예방"}]}',
+        'type은 space(공간)|method(공법)|material(자재)|defect(하자)|regulation(법규/기준)만 허용.',
+        'label은 텍스트에 실제로 등장한 한국어 용어로, 최대 60자. 추측 금지.',
+        'relations의 source/target은 entities의 label과 정확히 일치해야 한다.',
+      ].join('\n'),
+      prompt: text,
+      maxTokens: 1500,
+    });
+    const parsed = llmExtractionSchema.parse(JSON.parse(extractJsonObject(result.text)));
+    const labels = new Set(parsed.entities.map((e) => e.label));
+    return [
+      {
+        unitId: units[0]!.unitId,
+        entities: parsed.entities.map((e) => ({ label: e.label, type: e.type })),
+        relations: parsed.relations
+          .filter((r) => labels.has(r.source) && labels.has(r.target) && r.source !== r.target)
+          .map((r) => ({ sourceLabel: r.source, targetLabel: r.target, relationType: r.relation })),
+      },
+    ];
+  } catch (error) {
+    console.warn('[ontology] LLM 추출 실패, 사전 추출로 폴백:', error);
+    return extractFromUnits(units);
+  }
+}
+
 /**
  * 추출 결과를 CANDIDATE 노드/엣지로 저장.
  * - 같은 라벨의 기존 노드가 있으면 새로 만들지 않고 연결(provenance만 추가)
@@ -183,7 +257,7 @@ async function persistExtraction(
   units: { unitId: string; text: string }[],
   origin: { documentId?: string; sourceId?: string },
 ): Promise<ExtractionStats> {
-  const extractions = extractFromUnits(units);
+  const extractions = await extractUnitsSmart(workspaceId, units);
   const stats: ExtractionStats = { nodesCreated: 0, nodesLinked: 0, edgesCreated: 0 };
   const nodeIdByLabel = new Map<string, string>();
 
@@ -301,6 +375,73 @@ export async function extractFromKnowledgeSource(userId: string, sourceId: strin
     after: stats,
   });
   return stats;
+}
+
+type ProvenanceEntry = { documentId?: string; sourceId?: string; unitId?: string };
+
+/**
+ * 노드 상세: 실제 데이터 기반 provenance.
+ * 이 노드가 추출된 문서/지식소스 목록과 연결 관계를 반환한다.
+ */
+export async function getNodeDetail(userId: string, nodeId: string) {
+  const node = await prisma.ontologyNode.findUnique({ where: { id: nodeId } });
+  if (!node) {
+    throw new AppError(ErrorCodes.NOT_FOUND, { message: '온톨로지 노드를 찾을 수 없습니다.' });
+  }
+  await requireWorkspaceCapability(userId, node.workspaceId, Capabilities.VIEW_DOCUMENTS);
+
+  const meta = (node.metadata as { sources?: ProvenanceEntry[] } | null) ?? {};
+  const provenance = Array.isArray(meta.sources) ? meta.sources : [];
+  const documentIds = [...new Set(provenance.map((p) => p.documentId).filter(Boolean))] as string[];
+  const sourceIds = [...new Set(provenance.map((p) => p.sourceId).filter(Boolean))] as string[];
+
+  const [documents, knowledgeSources, edges] = await Promise.all([
+    prisma.document.findMany({
+      where: { id: { in: documentIds } },
+      select: { id: true, title: true, type: true, updatedAt: true },
+    }),
+    prisma.knowledgeSource.findMany({
+      where: { id: { in: sourceIds } },
+      select: { id: true, title: true, status: true },
+    }),
+    prisma.ontologyEdge.findMany({
+      where: {
+        status: { in: ['CANDIDATE', 'APPROVED'] as ('CANDIDATE' | 'APPROVED')[] },
+        OR: [{ sourceNodeId: nodeId }, { targetNodeId: nodeId }],
+      },
+    }),
+  ]);
+
+  const otherIds = edges.map((e) => (e.sourceNodeId === nodeId ? e.targetNodeId : e.sourceNodeId));
+  const otherNodes = await prisma.ontologyNode.findMany({
+    where: { id: { in: otherIds } },
+    select: { id: true, label: true },
+  });
+  const labelById = new Map(otherNodes.map((n) => [n.id, n.label]));
+
+  return {
+    node: {
+      id: node.id,
+      label: node.label,
+      type: node.type,
+      status: node.status,
+      confidence: node.confidence,
+      description: node.description,
+    },
+    documents,
+    knowledgeSources,
+    connections: edges.map((e) => {
+      const otherId = e.sourceNodeId === nodeId ? e.targetNodeId : e.sourceNodeId;
+      return {
+        edgeId: e.id,
+        relationType: e.relationType,
+        direction: e.sourceNodeId === nodeId ? 'out' : 'in',
+        nodeId: otherId,
+        label: labelById.get(otherId) ?? '?',
+      };
+    }),
+    extractionCount: provenance.length,
+  };
 }
 
 /** 샘플 온톨로지 시드 (그래프 뷰어 확인용) */

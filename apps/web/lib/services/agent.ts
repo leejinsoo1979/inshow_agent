@@ -218,6 +218,16 @@ export async function approveAction(userId: string, actionId: string) {
       targetId: actionId,
       after: { status: executed.status, result },
     });
+
+    // 실행된 문서에서 온톨로지 후보 자동 추출 — 사용자의 실제 작업이 지식 그래프에 누적된다.
+    // 실패해도 액션 실행 자체는 성공으로 유지한다.
+    try {
+      const { extractFromDocument } = await import('./ontology');
+      await extractFromDocument(userId, action.documentId);
+    } catch (error) {
+      console.warn('[agent] 온톨로지 자동 추출 실패:', error);
+    }
+
     return { status: executed.status, result };
   } catch (error) {
     await prisma.agentAction.update({ where: { id: actionId }, data: { status: 'FAILED' } });

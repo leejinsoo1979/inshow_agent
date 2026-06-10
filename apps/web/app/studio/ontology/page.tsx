@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
 import { GraphView, type GraphEdgeData, type GraphNodeData } from '@/components/ontology/GraphView';
@@ -10,6 +11,14 @@ type Me = { organizations: { workspaces: { id: string; name: string }[] }[] };
 type GraphNode = GraphNodeData & {
   description: string | null;
   confidence: number | null;
+};
+
+type NodeDetail = {
+  node: { id: string; label: string; type: string; status: string; confidence: number | null };
+  documents: { id: string; title: string; type: string }[];
+  knowledgeSources: { id: string; title: string; status: string }[];
+  connections: { edgeId: string; relationType: string; direction: string; nodeId: string; label: string }[];
+  extractionCount: number;
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -25,7 +34,9 @@ const TYPE_LABELS: Record<string, string> = {
  * 풀스크린 다크 캔버스 + 우측 플로팅 설정 패널(필터/표시/힘) + 노드 상세 플로팅 카드.
  */
 export default function OntologyPage() {
+  const router = useRouter();
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<NodeDetail | null>(null);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdgeData[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'candidate'>('all');
@@ -63,22 +74,24 @@ export default function OntologyPage() {
     if (workspaceId) loadGraph(workspaceId, statusFilter);
   }, [workspaceId, statusFilter, loadGraph]);
 
-  async function handleSeed() {
-    if (!workspaceId || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch('/api/ontology/seed', {
-        method: 'POST',
-        body: JSON.stringify({ workspaceId }),
-      });
-      loadGraph(workspaceId, statusFilter);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
+  // 선택 노드의 실제 provenance(관련 문서/지식소스/관계) 로드
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
     }
-  }
+    let cancelled = false;
+    apiFetch<NodeDetail>(`/api/ontology/nodes/${selectedId}`)
+      .then((data) => {
+        if (!cancelled) setDetail(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDetail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   async function handleApprove(nodeId: string) {
     if (busy || !workspaceId) return;
@@ -110,16 +123,24 @@ export default function OntologyPage() {
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-500">
             <p className="text-sm">아직 지식 그래프가 비어 있습니다.</p>
-            <p className="text-xs text-zinc-600">
-              문서에서 ‘지식 추출’을 실행하거나 샘플을 생성해 보세요.
+            <p className="max-w-sm text-center text-xs leading-5 text-zinc-600">
+              문서를 작성하고 AI 액션을 승인하거나, 에디터의 ‘지식 추출’ 버튼·지식베이스 업로드를
+              실행하면 실제 작업 내용이 노드로 누적됩니다.
             </p>
-            <button
-              onClick={handleSeed}
-              disabled={busy}
-              className="mt-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-900 disabled:opacity-50"
-            >
-              샘플 온톨로지 생성
-            </button>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => router.push('/studio')}
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-900"
+              >
+                문서 작성하러 가기
+              </button>
+              <button
+                onClick={() => router.push('/studio/knowledge')}
+                className="rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-zinc-300 hover:border-white"
+              >
+                지식베이스 업로드
+              </button>
+            </div>
             {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
         ) : (
@@ -256,26 +277,64 @@ export default function OntologyPage() {
                 </span>
               )}
               <span className="ml-2 text-zinc-500">연결 {selectedConnections.length}</span>
+              {detail && detail.extractionCount > 0 && (
+                <span className="ml-2 text-zinc-500">추출 {detail.extractionCount}회</span>
+              )}
             </p>
             {selected.description && (
               <p className="mb-2 text-[11px] leading-4 text-zinc-400">{selected.description}</p>
             )}
             <div className="mb-2 flex flex-wrap gap-1">
-              {selectedConnections.slice(0, 6).map((edge) => {
-                const otherId =
-                  edge.sourceNodeId === selected.id ? edge.targetNodeId : edge.sourceNodeId;
-                const other = nodes.find((n) => n.id === otherId);
-                return (
-                  <button
-                    key={edge.id}
-                    onClick={() => setSelectedId(otherId)}
-                    className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
-                  >
-                    {edge.relationType} → {other?.label ?? '?'}
-                  </button>
-                );
-              })}
+              {(detail?.connections ?? []).slice(0, 6).map((connection) => (
+                <button
+                  key={connection.edgeId}
+                  onClick={() => setSelectedId(connection.nodeId)}
+                  className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
+                >
+                  {connection.relationType} → {connection.label}
+                </button>
+              ))}
             </div>
+
+            {/* 실제 provenance: 이 노드가 추출된 문서/지식소스 */}
+            {detail && detail.documents.length > 0 && (
+              <div className="mb-2 border-t border-white/10 pt-2">
+                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">
+                  관련 문서 {detail.documents.length}
+                </p>
+                <ul className="space-y-1">
+                  {detail.documents.slice(0, 4).map((doc) => (
+                    <li key={doc.id}>
+                      <button
+                        onClick={() => router.push(`/studio/${doc.id}`)}
+                        className="w-full truncate rounded bg-white/5 px-2 py-1 text-left text-[11px] text-zinc-300 hover:bg-white/15 hover:text-white"
+                      >
+                        {doc.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {detail && detail.knowledgeSources.length > 0 && (
+              <div className="mb-2 border-t border-white/10 pt-2">
+                <p className="mb-1 text-[10px] tracking-wide text-zinc-500">
+                  관련 지식소스 {detail.knowledgeSources.length}
+                </p>
+                <ul className="space-y-1">
+                  {detail.knowledgeSources.slice(0, 3).map((source) => (
+                    <li key={source.id}>
+                      <button
+                        onClick={() => router.push('/studio/knowledge')}
+                        className="w-full truncate rounded bg-white/5 px-2 py-1 text-left text-[11px] text-zinc-300 hover:bg-white/15 hover:text-white"
+                      >
+                        {source.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {selected.status === 'CANDIDATE' && (
               <button
                 onClick={() => handleApprove(selected.id)}
