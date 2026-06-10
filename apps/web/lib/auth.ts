@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { prisma, type User } from '@archi/db';
 import { AppError, ErrorCodes } from '@archi/shared';
+import { auth } from '@/auth';
 
 export const SESSION_COOKIE = 'archi_session';
 
@@ -40,8 +41,18 @@ export function verifySessionToken(token: string): string | null {
   return Buffer.from(payload, 'base64url').toString('utf8');
 }
 
-/** 현재 요청의 세션 사용자 조회. 없으면 null */
+/**
+ * 현재 요청의 세션 사용자 조회. 없으면 null.
+ * 1) Auth.js(소셜 로그인) 세션을 먼저 확인하고,
+ * 2) 없으면 dev-login용 HMAC 세션 쿠키로 폴백한다.
+ */
 export async function getSessionUser(): Promise<User | null> {
+  const session = await auth();
+  if (session?.userId) {
+    const user = await prisma.user.findUnique({ where: { id: session.userId } });
+    if (user) return user;
+  }
+
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
