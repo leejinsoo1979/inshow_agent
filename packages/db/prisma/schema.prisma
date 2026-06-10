@@ -65,6 +65,7 @@ model Project {
   createdAt   DateTime   @default(now())
   workspace   Workspace  @relation(fields: [workspaceId], references: [id])
   documents   Document[]
+  images      ImageAsset[]
 }
 
 model Document {
@@ -177,6 +178,42 @@ enum AgentActionStatus {
   EXECUTED
   REJECTED
   FAILED
+}
+
+model ImageAsset {
+  id          String         @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  title       String?
+  source      ImageSource
+  createdAt   DateTime       @default(now())
+  project     Project?       @relation(fields: [projectId], references: [id])
+  versions    ImageVersion[]
+
+  @@index([workspaceId, createdAt])
+}
+
+enum ImageSource {
+  UPLOADED
+  GENERATED
+  INPAINTED
+}
+
+model ImageVersion {
+  id           String     @id @default(cuid())
+  imageAssetId String
+  fileKey      String
+  mimeType     String?
+  prompt       String?
+  maskFileKey  String?
+  provider     String?
+  model        String?
+  width        Int?
+  height       Int?
+  createdAt    DateTime   @default(now())
+  imageAsset   ImageAsset @relation(fields: [imageAssetId], references: [id], onDelete: Cascade)
+
+  @@index([imageAssetId, createdAt])
 }
 
 model ExportJob {

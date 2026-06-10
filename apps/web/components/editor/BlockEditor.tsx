@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BlockTypes } from '@archi/editor';
 import { apiFetch } from '@/lib/client/api';
 import { moveItem } from '@/lib/client/reorder';
+import { ImageGenerateModal } from '@/components/image/ImageGenerateModal';
 import { BlockContentEditor } from './BlockContentEditor';
 
 export type EditorBlock = {
@@ -15,6 +16,7 @@ export type EditorBlock = {
 
 export type DocumentWithBlocks = {
   id: string;
+  projectId: string;
   title: string;
   status: string;
   blocks: EditorBlock[];
@@ -60,6 +62,7 @@ export function BlockEditor({
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const load = useCallback(() => {
@@ -263,6 +266,15 @@ export function BlockEditor({
                 {BLOCK_TYPE_LABELS[type]}
               </button>
             ))}
+            <button
+              onClick={() => {
+                setAddMenuOpen(false);
+                setImageModalOpen(true);
+              }}
+              className="border-t border-zinc-100 px-4 py-2 text-left text-sm font-semibold text-violet-600 hover:bg-violet-50"
+            >
+              ✨ AI 이미지 생성
+            </button>
           </div>
         )}
         <button
@@ -273,6 +285,36 @@ export function BlockEditor({
           +
         </button>
       </div>
+
+      {imageModalOpen && doc && (
+        <ImageGenerateModal
+          projectId={doc.projectId}
+          onClose={() => setImageModalOpen(false)}
+          onInsert={async (image) => {
+            setImageModalOpen(false);
+            try {
+              await apiFetch(`/api/documents/${documentId}/blocks`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  afterBlockId: selectedBlockId ?? undefined,
+                  block: {
+                    type: 'image',
+                    content: {
+                      imageAssetId: image.imageAssetId,
+                      versionId: image.versionId,
+                      url: image.url,
+                      caption: image.caption,
+                    },
+                  },
+                }),
+              });
+              load();
+            } catch (e) {
+              setError((e as Error).message);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

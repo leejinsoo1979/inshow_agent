@@ -8,6 +8,7 @@
     "shared/src/**/*.ts",
     "ai/src/**/*.ts",
     "editor/src/**/*.ts",
-    "export/src/**/*.ts"
+    "export/src/**/*.ts",
+    "image/src/**/*.ts"
   ]
 }
