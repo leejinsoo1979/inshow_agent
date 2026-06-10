@@ -5,6 +5,7 @@ import { BlockTypes } from '@archi/editor';
 import { apiFetch } from '@/lib/client/api';
 import { moveItem } from '@/lib/client/reorder';
 import { ImageGenerateModal } from '@/components/image/ImageGenerateModal';
+import { InpaintModal } from '@/components/image/InpaintModal';
 import { BlockContentEditor } from './BlockContentEditor';
 
 export type EditorBlock = {
@@ -63,6 +64,7 @@ export function BlockEditor({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [inpaintTarget, setInpaintTarget] = useState<EditorBlock | null>(null);
   const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const load = useCallback(() => {
@@ -231,6 +233,20 @@ export function BlockEditor({
                   >
                     ↓
                   </button>
+                  {block.type === 'image' &&
+                    Boolean((block.content as { versionId?: string }).versionId) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInpaintTarget(block);
+                        }}
+                        className="px-1 text-zinc-500 hover:text-violet-600"
+                        aria-label="이미지 편집"
+                        title="이미지 편집 (인페인트)"
+                      >
+                        ✎
+                      </button>
+                    )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -285,6 +301,31 @@ export function BlockEditor({
           +
         </button>
       </div>
+
+      {inpaintTarget &&
+        (() => {
+          const c = inpaintTarget.content as {
+            imageAssetId?: string;
+            versionId?: string;
+            url?: string;
+            caption?: string;
+          };
+          if (!c.imageAssetId || !c.versionId || !c.url) return null;
+          return (
+            <InpaintModal
+              blockId={inpaintTarget.id}
+              imageAssetId={c.imageAssetId}
+              baseVersionId={c.versionId}
+              baseUrl={c.url}
+              caption={c.caption}
+              onClose={() => setInpaintTarget(null)}
+              onApplied={() => {
+                setInpaintTarget(null);
+                load();
+              }}
+            />
+          );
+        })()}
 
       {imageModalOpen && doc && (
         <ImageGenerateModal
