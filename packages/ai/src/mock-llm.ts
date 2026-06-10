@@ -25,6 +25,7 @@ export type AgentPlan = {
 };
 
 const BLOG_KEYWORDS = ['블로그', '초안', '글 써', '글써', '작성해'];
+const IMAGE_KEYWORDS = ['이미지', '사진', '그림', '썸네일'];
 const EDIT_KEYWORDS = ['바꿔', '수정', '고쳐', '다듬어', '톤'];
 const CHART_KEYWORDS = ['차트', '그래프'];
 
@@ -91,6 +92,40 @@ export function planAgentResponse(input: AgentPlanInput): AgentPlan {
           action_type: 'update_block',
           target: { documentId: input.documentId, blockId: input.selectedBlockId },
           payload: { content: { text: revised } },
+          requires_approval: true,
+          risk_level: 'low',
+        },
+      ],
+    };
+  }
+
+  // 이미지(+글) 생성 요청: 글 문단 + 실제 생성될 이미지 블록을 함께 제안
+  if (IMAGE_KEYWORDS.some((k) => input.message.includes(k))) {
+    const topic = input.documentTitle?.trim() || '인테리어';
+    return {
+      reply: `${topic} 관련 글과 이미지를 함께 구성했습니다. 승인하시면 이미지가 실제로 생성되어 문서에 삽입됩니다.`,
+      actions: [
+        {
+          action_type: 'insert_blocks',
+          target: { documentId: input.documentId },
+          payload: {
+            blocks: [
+              {
+                type: 'paragraph',
+                content: {
+                  text: `${topic} 공간은 자연광과 마감재의 톤을 맞추는 것이 핵심입니다. 아래 이미지는 분위기를 잡는 참고안입니다.`,
+                  tone: 'professional',
+                },
+              },
+              {
+                type: 'image',
+                content: {
+                  prompt: `${input.message} — ${topic}, 따뜻한 우드톤, 자연광, 인테리어 포토리얼리스틱`,
+                  caption: `${topic} 참고 이미지`,
+                },
+              },
+            ],
+          },
           requires_approval: true,
           risk_level: 'low',
         },

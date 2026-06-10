@@ -37,6 +37,8 @@ export const imageContentSchema = z.object({
   versionId: z.string().optional(),
   url: z.string().optional(),
   caption: z.string().optional(),
+  /** AI가 생성할 이미지 프롬프트. url이 없고 prompt가 있으면 삽입 시 실제 이미지를 생성한다. */
+  prompt: z.string().optional(),
 });
 
 export const checklistContentSchema = z.object({

@@ -299,7 +299,8 @@ async function planWithLlm(
     args.role?.persona ?? '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
     '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 다른 텍스트를 붙이지 마라.',
     '형식: {"reply": "사용자에게 보여줄 한국어 응답", "blocks": [...], "updated_text": "선택 블록 수정안(선택)"}',
-    'blocks 항목은 다음 타입만 허용: heading {level:1|2|3, text}, paragraph {text}, checklist {title?, items:[{text, checked:false}]}, cta {text, buttonLabel?, url?}, chart {chartType:"bar"|"line"|"pie", title?, labels:[...], series:[{name?, values:[숫자...]}]},',
+    'blocks 항목은 다음 타입만 허용: heading {level:1|2|3, text}, paragraph {text}, checklist {title?, items:[{text, checked:false}]}, cta {text, buttonLabel?, url?}, chart {chartType:"bar"|"line"|"pie", title?, labels:[...], series:[{name?, values:[숫자...]}]}, image {prompt:"생성할 이미지 묘사", caption?:"캡션"}',
+    '사용자가 이미지를 원하거나 글에 어울리는 시각자료가 필요하면 image 블록을 적절한 위치에 넣어라. image 블록은 prompt만 주면 실제 이미지가 자동 생성된다.',
     '문서에 삽입할 내용이 없으면 blocks는 빈 배열로 둔다.',
     '사용자가 선택한 블록의 수정을 요청하면 updated_text에 수정안만 넣고 blocks는 비운다.',
   ].join('\n');
@@ -365,11 +366,45 @@ async function executeAction(userId: string, action: AgentActionInput) {
     case 'insert_blocks': {
       const inserted = [];
       let afterBlockId = action.target.afterBlockId;
+      // 이미지 블록 생성을 위해 문서의 projectId를 미리 조회
+      const doc = await prisma.document.findUnique({
+        where: { id: action.target.documentId },
+        select: { projectId: true },
+      });
       for (const block of action.payload.blocks) {
         const created = await addBlock(userId, action.target.documentId, {
           afterBlockId,
           block,
         });
+
+        // 이미지 블록에 생성 프롬프트가 있고 url이 없으면 실제 이미지를 생성해 채운다
+        const imgContent = block.content as { prompt?: string; url?: string; caption?: string };
+        if (block.type === 'image' && imgContent.prompt && !imgContent.url && doc?.projectId) {
+          try {
+            const { generateImage } = await import('./images');
+            const gen = await generateImage(userId, {
+              projectId: doc.projectId,
+              prompt: imgContent.prompt,
+              count: 1,
+            });
+            const version = gen.versions[0];
+            if (version) {
+              await prisma.documentBlock.update({
+                where: { id: created.id },
+                data: {
+                  content: {
+                    imageAssetId: gen.imageAssetId,
+                    versionId: version.id,
+                    url: version.url,
+                    caption: imgContent.caption ?? imgContent.prompt.slice(0, 80),
+                  } as Prisma.InputJsonValue,
+                },
+              });
+            }
+          } catch (error) {
+            console.warn('[agent] 이미지 생성 실패, 빈 이미지 블록 유지:', error);
+          }
+        }
         // 출처 블록이면 citation draft를 실제 Citation 레코드로 생성한다
         const drafts = (block.metadata as { citationDrafts?: CitationDraft[] } | undefined)
           ?.citationDrafts;

@@ -423,17 +423,23 @@ export function AIChatPanel({
 
 function ActionPayloadPreview({ type, payload }: { type: string; payload: unknown }) {
   if (type === 'insert_blocks') {
-    const p = payload as { payload?: { blocks?: { type: string; content: { text?: string; title?: string } }[] } };
+    const p = payload as {
+      payload?: {
+        blocks?: { type: string; content: { text?: string; title?: string; prompt?: string } }[];
+      };
+    };
     const blocks = p.payload?.blocks ?? [];
     return (
       <ul className="space-y-1 text-xs text-zinc-300">
-        {blocks.slice(0, 5).map((b, i) => (
+        {blocks.slice(0, 6).map((b, i) => (
           <li key={i} className="truncate">
-            <span className="text-zinc-500">{b.type}</span>{' '}
-            {b.content.text ?? b.content.title ?? ''}
+            <span className="text-zinc-500">{b.type === 'image' ? '🖼 이미지' : b.type}</span>{' '}
+            {b.type === 'image'
+              ? (b.content.prompt ?? '생성 예정')
+              : (b.content.text ?? b.content.title ?? '')}
           </li>
         ))}
-        {blocks.length > 5 && <li className="text-zinc-500">…외 {blocks.length - 5}개 블록</li>}
+        {blocks.length > 6 && <li className="text-zinc-500">…외 {blocks.length - 6}개 블록</li>}
       </ul>
     );
   }
