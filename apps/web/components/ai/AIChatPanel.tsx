@@ -1,7 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/client/api';
+
+type ChatModelInfo = {
+  workspaceId: string;
+  active: { configId: string; provider: string; model: string | null } | null;
+  options: {
+    configId: string;
+    provider: string;
+    providerLabel: string;
+    model: string | null;
+    authType: string;
+  }[];
+  isMock: boolean;
+};
 
 type ActionPreview = {
   id: string;
@@ -52,9 +65,53 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
   const [activeTeam, setActiveTeam] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 커서 스타일 모델 셀렉터
+  const [modelInfo, setModelInfo] = useState<ChatModelInfo | null>(null);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [items]);
+
+  const loadModelInfo = useCallback(() => {
+    apiFetch<ChatModelInfo>(`/api/ai/model?documentId=${documentId}`)
+      .then(setModelInfo)
+      .catch(() => setModelInfo(null));
+  }, [documentId]);
+
+  useEffect(() => {
+    loadModelInfo();
+  }, [loadModelInfo]);
+
+  // 메뉴 열 때 해당 provider의 모델 목록(라이브) 로드
+  useEffect(() => {
+    if (!modelMenuOpen || !modelInfo?.active || !modelInfo.workspaceId) return;
+    apiFetch<{ models: string[] }>(
+      `/api/settings/llm/models?workspaceId=${modelInfo.workspaceId}&provider=${modelInfo.active.provider}`,
+    )
+      .then((data) => setModels(data.models))
+      .catch(() => setModels([]));
+  }, [modelMenuOpen, modelInfo]);
+
+  async function selectModel(configId: string, model: string) {
+    setModelMenuOpen(false);
+    try {
+      await apiFetch(`/api/ai/model?documentId=${documentId}`, {
+        method: 'POST',
+        body: JSON.stringify({ configId, model }),
+      });
+      loadModelInfo();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  const activeLabel = modelInfo?.isMock
+    ? 'mock (미연결)'
+    : modelInfo?.active
+      ? `${modelInfo.options.find((o) => o.configId === modelInfo.active!.configId)?.providerLabel ?? ''} · ${modelInfo.active.model ?? '기본'}`
+      : '모델 미설정';
 
   /** mock stream: 응답 텍스트를 타자기 효과로 표시 */
   function streamAssistantText(text: string, agentLabel?: string): Promise<void> {
@@ -161,6 +218,67 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
             <p className="text-[11px] text-zinc-400">
               {selectedBlockId ? '블록 선택됨 · 수정 요청 가능' : '문서 전체 모드'}
             </p>
+          </div>
+
+          {/* 커서 스타일 모델 셀렉터 */}
+          <div className="relative ml-auto">
+            <button
+              onClick={() => setModelMenuOpen((v) => !v)}
+              className="flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-[11px] text-zinc-300 hover:border-white/40"
+              title="모델 선택"
+            >
+              {activeLabel}
+              <span className="text-zinc-500">▾</span>
+            </button>
+            {modelMenuOpen && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-56 overflow-hidden rounded-lg border border-white/10 bg-[#23232f] py-1 shadow-xl">
+                {modelInfo && modelInfo.options.length === 0 ? (
+                  <a
+                    href="/studio/settings"
+                    className="block px-3 py-2 text-[11px] text-zinc-400 hover:bg-white/5"
+                  >
+                    등록된 LLM이 없습니다 — 설정에서 API 키 등록 →
+                  </a>
+                ) : (
+                  <>
+                    {/* 다른 provider로 전환 */}
+                    {(modelInfo?.options ?? [])
+                      .filter((o) => o.configId !== modelInfo?.active?.configId)
+                      .map((o) => (
+                        <button
+                          key={o.configId}
+                          onClick={() => selectModel(o.configId, o.model ?? '')}
+                          className="block w-full px-3 py-2 text-left text-[11px] text-zinc-300 hover:bg-white/5"
+                        >
+                          {o.providerLabel} · {o.model ?? '기본'}
+                        </button>
+                      ))}
+                    {/* 활성 provider의 모델 목록 */}
+                    {modelInfo?.active && models.length > 0 && (
+                      <>
+                        <p className="border-t border-white/5 px-3 pb-1 pt-2 text-[9px] tracking-wide text-zinc-500">
+                          {modelInfo.options.find((o) => o.configId === modelInfo.active!.configId)
+                            ?.providerLabel ?? ''}{' '}
+                          모델
+                        </p>
+                        {models.map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => selectModel(modelInfo.active!.configId, m)}
+                            className={`block w-full px-3 py-1.5 text-left text-[11px] hover:bg-white/5 ${
+                              m === modelInfo.active!.model ? 'text-white' : 'text-zinc-400'
+                            }`}
+                          >
+                            {m === modelInfo.active!.model ? '✓ ' : ''}
+                            {m}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-2.5 flex flex-wrap gap-1">

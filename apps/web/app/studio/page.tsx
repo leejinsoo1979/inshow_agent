@@ -119,13 +119,8 @@ export default function StudioDashboardPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // 새 문서 모달
-  const [createType, setCreateType] = useState<(typeof DOC_TYPES)[number] | null>(null);
-  const [newTitle, setNewTitle] = useState('');
-  const [newProjectId, setNewProjectId] = useState<string>('');
   const [newProjectName, setNewProjectName] = useState('');
-  const [withTemplate, setWithTemplate] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<Me>('/api/auth/me')
@@ -146,7 +141,6 @@ export default function StudioDashboardPage() {
       .then(([dash, projectData]) => {
         setDashboard(dash);
         setProjects(projectData.projects);
-        setNewProjectId((prev) => prev || projectData.projects[0]?.id || '');
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
@@ -175,20 +169,18 @@ export default function StudioDashboardPage() {
     }
   }
 
-  async function handleCreateDocument(e: React.FormEvent) {
-    e.preventDefault();
-    if (!createType || !workspaceId || busy) return;
-    setBusy(true);
+  /** 템플릿 카드 클릭 → 즉시 생성 후 에디터로 (이름/프로젝트는 에디터에서 수정). Canva 스타일. */
+  async function handleQuickCreate(docType: (typeof DOC_TYPES)[number]) {
+    if (!workspaceId || creating) return;
+    setCreating(docType.type);
     setError(null);
     try {
-      let projectId = newProjectId;
+      // 프로젝트가 없으면 기본 프로젝트를 자동 생성
+      let projectId = projects[0]?.id;
       if (!projectId) {
         const project = await apiFetch<{ id: string }>('/api/projects', {
           method: 'POST',
-          body: JSON.stringify({
-            workspaceId,
-            name: newProjectName.trim() || '내 프로젝트',
-          }),
+          body: JSON.stringify({ workspaceId, name: '내 작업' }),
         });
         projectId = project.id;
       }
@@ -196,15 +188,15 @@ export default function StudioDashboardPage() {
         method: 'POST',
         body: JSON.stringify({
           projectId,
-          title: newTitle.trim() || `새 ${createType.label}`,
-          type: createType.type,
-          withTemplate,
+          title: `제목 없는 ${docType.label}`,
+          type: docType.type,
+          withTemplate: true,
         }),
       });
       router.push(`/studio/${doc.id}`);
     } catch (err) {
       setError((err as Error).message);
-      setBusy(false);
+      setCreating(null);
     }
   }
 
@@ -273,17 +265,17 @@ export default function StudioDashboardPage() {
               {DOC_TYPES.map((docType) => (
                 <button
                   key={docType.type}
-                  onClick={() => {
-                    setCreateType(docType);
-                    setNewTitle('');
-                  }}
-                  className="group rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-zinc-900 hover:shadow-md"
+                  onClick={() => handleQuickCreate(docType)}
+                  disabled={creating !== null}
+                  className="group rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-zinc-900 hover:shadow-md disabled:opacity-60"
                 >
                   <span className="mb-6 flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 text-white transition group-hover:scale-105">
                     <FiPlus size={15} aria-hidden />
                   </span>
                   <p className={`${display.className} text-lg text-zinc-900`}>{docType.label}</p>
-                  <p className="mt-0.5 text-[10px] leading-4 text-zinc-400">{docType.desc}</p>
+                  <p className="mt-0.5 text-[10px] leading-4 text-zinc-400">
+                    {creating === docType.type ? '만드는 중...' : docType.desc}
+                  </p>
                 </button>
               ))}
             </div>
@@ -477,83 +469,6 @@ export default function StudioDashboardPage() {
           </div>
         </div>
       </main>
-
-      {/* 새 문서 모달 */}
-      {createType && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => !busy && setCreateType(null)}
-        >
-          <form
-            onSubmit={handleCreateDocument}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-          >
-            <p className="mb-1 text-[10px] tracking-[0.25em] text-zinc-400">NEW_DOCUMENT</p>
-            <h2 className={`${display.className} mb-5 text-2xl text-zinc-900`}>
-              {createType.label} 만들기
-            </h2>
-            <label className="mb-3 block text-xs text-zinc-500">
-              제목
-              <input
-                autoFocus
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder={`예: 34평 아파트 ${createType.label}`}
-                className="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 outline-none focus:border-zinc-900"
-              />
-            </label>
-            <label className="mb-3 block text-xs text-zinc-500">
-              프로젝트
-              {projects.length > 0 ? (
-                <select
-                  value={newProjectId}
-                  onChange={(e) => setNewProjectId(e.target.value)}
-                  className="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-2 text-sm text-zinc-900 outline-none focus:border-zinc-900"
-                >
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="첫 프로젝트 이름 (예: 우리집 리모델링)"
-                  className="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 outline-none focus:border-zinc-900"
-                />
-              )}
-            </label>
-            <label className="mb-6 flex items-center gap-2 text-xs text-zinc-500">
-              <input
-                type="checkbox"
-                checked={withTemplate}
-                onChange={(e) => setWithTemplate(e.target.checked)}
-              />
-              {createType.label} 블록 템플릿으로 시작
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={busy}
-                className="h-11 flex-1 rounded-lg bg-zinc-900 text-sm font-bold text-white hover:bg-zinc-700 disabled:opacity-50"
-              >
-                {busy ? '만드는 중...' : '문서 만들기 →'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreateType(null)}
-                disabled={busy}
-                className="h-11 rounded-lg border border-zinc-300 px-5 text-sm text-zinc-600"
-              >
-                취소
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

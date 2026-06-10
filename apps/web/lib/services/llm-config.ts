@@ -8,9 +8,83 @@ import {
 } from '@archi/ai';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
-import { requireWorkspaceCapability } from '../authz';
+import { requireDocumentCapability, requireWorkspaceCapability } from '../authz';
 import { writeAuditLog } from '../audit';
 import { decryptSecret, encryptSecret, maskSecret } from '../crypto';
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  google: 'Gemini',
+  grok: 'Grok',
+};
+
+/**
+ * 채팅 패널용: 현재 활성 모델과, 등록된 모든 provider/모델 후보를 반환한다 (커서 스타일 셀렉터).
+ * 문서 조회 권한만 있으면 볼 수 있다(편집자도 모델 확인 가능).
+ */
+export async function getChatModelOptions(userId: string, documentId: string) {
+  const { workspaceId } = await requireDocumentCapability(
+    userId,
+    documentId,
+    Capabilities.VIEW_DOCUMENTS,
+  );
+  const configs = await prisma.llmProviderConfig.findMany({
+    where: { workspaceId, provider: { in: ['openai', 'google', 'grok'] } },
+    orderBy: { createdAt: 'desc' },
+  });
+  const active = configs.find((c) => c.isActive) ?? configs[0] ?? null;
+  return {
+    workspaceId,
+    active: active
+      ? { configId: active.id, provider: active.provider, model: active.model }
+      : null,
+    options: configs.map((c) => ({
+      configId: c.id,
+      provider: c.provider,
+      providerLabel: PROVIDER_LABELS[c.provider] ?? c.provider,
+      model: c.model,
+      authType: c.authType,
+    })),
+    /** 등록된 LLM이 없으면 mock 안내용 */
+    isMock: configs.length === 0,
+  };
+}
+
+export const setChatModelSchema = z.object({
+  configId: z.string().min(1),
+  model: z.string().min(1).max(100),
+});
+
+/** 채팅 셀렉터에서 모델 변경. 해당 config의 model을 갱신하고 활성화한다 (관리자 전용) */
+export async function setChatModel(
+  userId: string,
+  documentId: string,
+  input: z.infer<typeof setChatModelSchema>,
+) {
+  const { workspaceId } = await requireDocumentCapability(
+    userId,
+    documentId,
+    Capabilities.MANAGE_LLM_PROVIDERS,
+  );
+  const config = await prisma.llmProviderConfig.findFirst({
+    where: { id: input.configId, workspaceId },
+  });
+  if (!config) {
+    throw new AppError(ErrorCodes.NOT_FOUND, { message: 'LLM 설정을 찾을 수 없습니다.' });
+  }
+  // 선택한 config만 활성화 (한 워크스페이스에 여러 provider가 있을 때 전환)
+  await prisma.$transaction([
+    prisma.llmProviderConfig.updateMany({
+      where: { workspaceId, id: { not: config.id } },
+      data: { isActive: false },
+    }),
+    prisma.llmProviderConfig.update({
+      where: { id: config.id },
+      data: { model: input.model, isActive: true },
+    }),
+  ]);
+  return { provider: config.provider, model: input.model };
+}
 
 // 지원 provider: OpenAI, Google(Gemini), Grok(xAI). Anthropic(Claude) API는 사용하지 않는다.
 export const registerLlmConfigSchema = z.object({

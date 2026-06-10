@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { FiChevronDown, FiDownload, FiShare2 } from 'react-icons/fi';
 import { apiFetch } from '@/lib/client/api';
@@ -27,11 +27,40 @@ type Props = {
   saveState: 'idle' | 'saving' | 'saved';
 };
 
-/** 문서 상단 바: 제목 + 상태 + 지식 추출 + 내보내기 (참고 UI 상단 영역) */
+/** 문서 상단 바: 제목(인라인 편집) + 상태 + 지식 추출 + 내보내기 */
 export function TopBar({ documentId, title, status, saveState }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState(title);
+  const lastSavedTitle = useRef(title);
+
+  // 서버에서 새 제목이 로드되면 동기화 (편집 중이 아닐 때만)
+  useEffect(() => {
+    if (document.activeElement !== titleInputRef.current) {
+      setTitleDraft(title);
+      lastSavedTitle.current = title;
+    }
+  }, [title]);
+
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  async function commitTitle() {
+    const next = titleDraft.trim();
+    if (!next || next === lastSavedTitle.current) {
+      setTitleDraft(lastSavedTitle.current);
+      return;
+    }
+    lastSavedTitle.current = next;
+    try {
+      await apiFetch(`/api/documents/${documentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: next }),
+      });
+    } catch (e) {
+      setNotice((e as Error).message);
+    }
+  }
 
   async function handleExport(format: string) {
     setExportOpen(false);
@@ -77,7 +106,25 @@ export function TopBar({ documentId, title, status, saveState }: Props) {
       <Link href="/studio" className="text-xs text-zinc-400 hover:text-zinc-900">
         ← 문서
       </Link>
-      <h1 className="truncate text-sm font-bold text-zinc-900">{title || '문서'}</h1>
+      <input
+        ref={titleInputRef}
+        value={titleDraft}
+        onChange={(e) => setTitleDraft(e.target.value)}
+        onBlur={commitTitle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            titleInputRef.current?.blur();
+          }
+          if (e.key === 'Escape') {
+            setTitleDraft(lastSavedTitle.current);
+            titleInputRef.current?.blur();
+          }
+        }}
+        placeholder="제목 없는 문서"
+        title="클릭해서 제목 변경"
+        className="min-w-0 flex-1 rounded px-1 text-sm font-bold text-zinc-900 outline-none hover:bg-zinc-100 focus:bg-zinc-100"
+      />
       <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600">
         {STATUS_LABELS[status] ?? status}
       </span>
