@@ -43,6 +43,8 @@ type ChatItem =
 type Props = {
   documentId: string;
   selectedBlockId: string | null;
+  /** 선택된 블록의 표시 이름 (예: "이미지 · 따뜻한 우드톤 거실") */
+  selectedBlockLabel?: string | null;
   onDocumentChanged: () => void;
 };
 
@@ -51,7 +53,12 @@ const ACTION_LABELS: Record<string, string> = {
   update_block: '블록 수정',
 };
 
-export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: Props) {
+export function AIChatPanel({
+  documentId,
+  selectedBlockId,
+  selectedBlockLabel,
+  onDocumentChanged,
+}: Props) {
   const [items, setItems] = useState<ChatItem[]>([
     {
       kind: 'assistant',
@@ -113,33 +120,10 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
       ? `${modelInfo.options.find((o) => o.configId === modelInfo.active!.configId)?.providerLabel ?? ''} · ${modelInfo.active.model ?? '기본'}`
       : '모델 미설정';
 
-  /** mock stream: 응답 텍스트를 타자기 효과로 표시 */
+  /** 어시스턴트 응답을 표시 (전체 텍스트를 한 번에 — 타자기 효과의 잔여 글자 버그 제거) */
   function streamAssistantText(text: string, agentLabel?: string): Promise<void> {
-    return new Promise((resolve) => {
-      setItems((prev) => [...prev, { kind: 'assistant', text: '', streaming: true, agentLabel }]);
-      let i = 0;
-      const timer = setInterval(() => {
-        i += 3;
-        const slice = text.slice(0, i);
-        setItems((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.kind === 'assistant') {
-            next[next.length - 1] = {
-              kind: 'assistant',
-              text: slice,
-              streaming: i < text.length,
-              agentLabel,
-            };
-          }
-          return next;
-        });
-        if (i >= text.length) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, 20);
-    });
+    setItems((prev) => [...prev, { kind: 'assistant', text, streaming: false, agentLabel }]);
+    return Promise.resolve();
   }
 
   async function handleSend(e: React.FormEvent) {
@@ -213,10 +197,12 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs font-bold text-zinc-900">
             AI
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold">AI 에이전트</p>
-            <p className="text-[11px] text-zinc-400">
-              {selectedBlockId ? '블록 선택됨 · 수정 요청 가능' : '문서 전체 모드'}
+            <p className="truncate text-[11px] text-zinc-400">
+              {selectedBlockId
+                ? `선택: ${selectedBlockLabel || '블록'}`
+                : '문서 전체 모드'}
             </p>
           </div>
 

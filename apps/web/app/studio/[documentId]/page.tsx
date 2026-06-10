@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useState } from 'react';
+import { use, useCallback, useMemo, useState } from 'react';
 import { AIChatPanel } from '@/components/ai/AIChatPanel';
 import { BlockEditor, type EditorBlock } from '@/components/editor/BlockEditor';
 import { BlockOutline } from '@/components/studio/BlockOutline';
@@ -8,6 +8,20 @@ import { NavRail } from '@/components/studio/NavRail';
 import { TopBar } from '@/components/studio/TopBar';
 
 type DocMeta = { id: string; projectId: string; title: string; status: string };
+
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  heading: '제목',
+  paragraph: '문단',
+  image: '이미지',
+  checklist: '체크리스트',
+  source_reference: '출처',
+  cta: 'CTA',
+  chart: '차트',
+  table: '표',
+  formula: '계산식',
+  doc_meta: '문서정보',
+  qna: 'Q&A',
+};
 
 export default function DocumentStudioPage({
   params,
@@ -24,6 +38,15 @@ export default function DocumentStudioPage({
 
   const handleDocumentChanged = useCallback(() => setReloadKey((k) => k + 1), []);
 
+  const selectedBlockLabel = useMemo(() => {
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return null;
+    const c = block.content as { text?: string; title?: string; caption?: string };
+    const summary = (c.text ?? c.title ?? c.caption ?? '').slice(0, 16);
+    const typeLabel = BLOCK_TYPE_LABELS[block.type] ?? block.type;
+    return summary ? `${typeLabel} · ${summary}` : typeLabel;
+  }, [blocks, selectedBlockId]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-100">
       <NavRail />
@@ -33,6 +56,7 @@ export default function DocumentStudioPage({
         <AIChatPanel
           documentId={documentId}
           selectedBlockId={selectedBlockId}
+          selectedBlockLabel={selectedBlockLabel}
           onDocumentChanged={handleDocumentChanged}
         />
       </aside>

@@ -1,9 +1,10 @@
 import { prisma } from '@archi/db';
-import { MockImageProvider } from '@archi/image';
+import { MockImageProvider, OpenAIImageProvider, type ImageProvider } from '@archi/image';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireProjectCapability, requireWorkspaceCapability } from '../authz';
 import { writeAuditLog } from '../audit';
+import { decryptSecret } from '../crypto';
 import { readStorageFile, saveStorageFile } from '../storage';
 
 export const generateImageSchema = z.object({
@@ -17,8 +18,21 @@ export const generateImageSchema = z.object({
   count: z.number().int().min(1).max(4).optional(),
 });
 
-function getImageProvider() {
-  // IMAGE_PROVIDER env로 실제 provider 교체 예정. 현재는 mock만 지원.
+/**
+ * 워크스페이스에 OpenAI 키가 등록돼 있으면 실제 이미지 생성(gpt-image-1)을 쓰고,
+ * 없으면 mock(SVG 플레이스홀더)으로 폴백한다.
+ */
+async function getImageProvider(workspaceId: string): Promise<ImageProvider> {
+  const config = await prisma.llmProviderConfig.findFirst({
+    where: { workspaceId, provider: 'openai', isActive: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (config?.encryptedApiKey) {
+    return new OpenAIImageProvider({
+      apiKey: decryptSecret(config.encryptedApiKey),
+      baseUrl: config.baseUrl ?? undefined,
+    });
+  }
   return new MockImageProvider();
 }
 
@@ -30,7 +44,7 @@ export async function generateImage(userId: string, input: z.infer<typeof genera
     Capabilities.GENERATE_IMAGES,
   );
 
-  const provider = getImageProvider();
+  const provider = await getImageProvider(workspaceId);
   const result = await provider.generate({
     prompt: input.prompt,
     style: input.style,
@@ -147,7 +161,7 @@ export async function inpaintImage(userId: string, input: z.infer<typeof inpaint
     maskBytes = Uint8Array.from(Buffer.from(base64, 'base64'));
   }
 
-  const provider = getImageProvider();
+  const provider = await getImageProvider(baseVersion.imageAsset.workspaceId);
   const size =
     baseVersion.width && baseVersion.height
       ? `${baseVersion.width}x${baseVersion.height}`
