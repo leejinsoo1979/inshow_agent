@@ -241,6 +241,46 @@ model KnowledgeChunk {
   @@index([sourceId, chunkIndex])
 }
 
+model OntologyNode {
+  id          String         @id @default(cuid())
+  workspaceId String
+  label       String
+  type        String
+  description String?
+  status      OntologyStatus @default(CANDIDATE)
+  confidence  Float?
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  outgoing    OntologyEdge[] @relation("EdgeSource")
+  incoming    OntologyEdge[] @relation("EdgeTarget")
+
+  @@index([workspaceId, type, status])
+}
+
+model OntologyEdge {
+  id           String         @id @default(cuid())
+  workspaceId  String
+  sourceNodeId String
+  targetNodeId String
+  relationType String
+  status       OntologyStatus @default(CANDIDATE)
+  confidence   Float?
+  evidence     Json?
+  createdAt    DateTime       @default(now())
+  sourceNode   OntologyNode   @relation("EdgeSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode   OntologyNode   @relation("EdgeTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, sourceNodeId, targetNodeId, relationType])
+}
+
+enum OntologyStatus {
+  CANDIDATE
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
 model ImageAsset {
   id          String         @id @default(cuid())
   workspaceId String

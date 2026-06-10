@@ -10,6 +10,7 @@
     "editor/src/**/*.ts",
     "export/src/**/*.ts",
     "image/src/**/*.ts",
-    "knowledge/src/**/*.ts"
+    "knowledge/src/**/*.ts",
+    "ontology/src/**/*.ts"
   ]
 }
