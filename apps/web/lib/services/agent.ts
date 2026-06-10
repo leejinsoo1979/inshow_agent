@@ -120,7 +120,14 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
         selectedBlockText,
         role: agentRole,
       });
-      if (llmPlan) plan = llmPlan;
+      // 실제 LLM이 등록됐으면 결과를 그대로 쓴다. 실패해도 mock 문구로 숨기지 않고
+      // 실패 사유를 사용자에게 보여준다 (조용한 mock 폴백 → 앵무새 현상 방지).
+      plan = llmPlan.ok
+        ? llmPlan.plan
+        : {
+            reply: `⚠️ 모델 호출에 실패했습니다 (${provider.name}). ${llmPlan.error}\n\n설정에서 모델을 확인하거나 잠시 후 다시 시도해 주세요.`,
+            actions: [],
+          };
     }
   }
 
@@ -275,6 +282,8 @@ const llmPlanResponseSchema = z.object({
  * 실제 LLM으로 초안/수정안 생성.
  * 응답은 JSON으로 강제하고 블록은 zod로 재검증한다. 실패 시 null을 반환해 mock 플랜으로 폴백.
  */
+type PlanResult = { ok: true; plan: AgentPlan } | { ok: false; error: string };
+
 async function planWithLlm(
   provider: LlmProvider,
   args: {
@@ -285,7 +294,7 @@ async function planWithLlm(
     selectedBlockText?: string;
     role?: AgentRole;
   },
-): Promise<AgentPlan | null> {
+): Promise<PlanResult> {
   const system = [
     args.role?.persona ?? '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
     '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 다른 텍스트를 붙이지 마라.',
@@ -305,8 +314,16 @@ async function planWithLlm(
 
   try {
     const result = await provider.generateText({ system, prompt, maxTokens: 3000 });
-    const jsonText = extractJsonObject(result.text);
-    const parsed = llmPlanResponseSchema.parse(JSON.parse(jsonText));
+    // 모델이 JSON 형식을 안 지키면 응답 텍스트를 그대로 답변으로 사용한다 (앵무새 대신 실제 응답).
+    let parsed: z.infer<typeof llmPlanResponseSchema>;
+    try {
+      parsed = llmPlanResponseSchema.parse(JSON.parse(extractJsonObject(result.text)));
+    } catch {
+      return {
+        ok: true,
+        plan: { reply: result.text.trim() || '(빈 응답)', actions: [] },
+      };
+    }
 
     const actions: AgentActionInput[] = [];
     if (args.selectedBlockId && parsed.updated_text) {
@@ -326,10 +343,11 @@ async function planWithLlm(
         risk_level: 'low',
       });
     }
-    return { reply: parsed.reply, actions };
+    return { ok: true, plan: { reply: parsed.reply, actions } };
   } catch (error) {
-    console.warn('[agent] LLM 플랜 생성 실패, mock 플랜으로 폴백합니다:', error);
-    return null;
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[agent] LLM 호출 실패:', message);
+    return { ok: false, error: message.slice(0, 300) };
   }
 }
 

@@ -56,7 +56,7 @@ export class OpenAIProvider implements LlmProvider {
   }
 
   private async viaResponses(input: GenerateTextInput): Promise<GenerateTextResult> {
-    const res = await fetch(`${this.base}/v1/responses`, {
+    const res = await fetchWithTimeout(`${this.base}/v1/responses`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.token}`,
@@ -90,7 +90,7 @@ export class OpenAIProvider implements LlmProvider {
   }
 
   private async viaChatCompletions(input: GenerateTextInput): Promise<GenerateTextResult> {
-    const res = await fetch(`${this.base}/v1/chat/completions`, {
+    const res = await fetchWithTimeout(`${this.base}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.token}`,
@@ -125,5 +125,25 @@ export class OpenAIProvider implements LlmProvider {
     const result = await this.generateText(input);
     yield { type: 'text_delta', text: result.text };
     yield { type: 'done' };
+  }
+}
+
+/** 모델이 무한 대기하면 ERR_EMPTY_RESPONSE가 나므로 타임아웃을 건다 (기본 90초) */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = 90_000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`모델 응답 시간 초과 (${Math.round(timeoutMs / 1000)}초)`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
