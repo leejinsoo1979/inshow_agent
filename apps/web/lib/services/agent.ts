@@ -417,6 +417,7 @@ function extractJsonObject(text: string): string {
 }
 
 async function executeAction(userId: string, action: AgentActionInput) {
+  const warnings: string[] = [];
   switch (action.action_type) {
     case 'insert_blocks': {
       const inserted = [];
@@ -455,9 +456,17 @@ async function executeAction(userId: string, action: AgentActionInput) {
                   } as Prisma.InputJsonValue,
                 },
               });
+              // provider 미설정 → mock 플레이스홀더가 삽입됐음을 조용히 넘기지 않고 알린다.
+              if (version.provider === 'mock') {
+                warnings.push(
+                  `이미지 provider가 설정되지 않아 "${imgContent.prompt.slice(0, 30)}…"는 임시 플레이스홀더로 삽입됐습니다. 설정 → LLM에서 OpenAI 키를 등록하면 실제 이미지가 생성됩니다.`,
+                );
+              }
             }
           } catch (error) {
-            console.warn('[agent] 이미지 생성 실패, 빈 이미지 블록 유지:', error);
+            // 조용히 삼키지 않고 사용자에게 실패 사유를 알린다 (CLAUDE.md: AI 도구 호출 silent fail 금지).
+            const msg = error instanceof Error ? error.message : String(error);
+            warnings.push(`이미지 생성 실패 ("${imgContent.prompt.slice(0, 30)}…"): ${msg}`);
           }
         }
         // 출처 블록이면 citation draft를 실제 Citation 레코드로 생성한다
@@ -493,13 +502,13 @@ async function executeAction(userId: string, action: AgentActionInput) {
         inserted.push(created.id);
         afterBlockId = created.id;
       }
-      return { insertedBlockIds: inserted };
+      return { insertedBlockIds: inserted, warnings };
     }
     case 'update_block': {
       const updated = await updateBlock(userId, action.target.blockId, {
         content: action.payload.content,
       });
-      return { updatedBlockId: updated.id };
+      return { updatedBlockId: updated.id, warnings };
     }
   }
 }

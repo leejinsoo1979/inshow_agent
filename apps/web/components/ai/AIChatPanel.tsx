@@ -169,7 +169,15 @@ export function AIChatPanel({
   async function handleAction(actionId: string, decision: 'approve' | 'reject') {
     setError(null);
     try {
-      await apiFetch(`/api/ai/actions/${actionId}/${decision}`, { method: 'POST' });
+      const res = await apiFetch<{ result?: { warnings?: string[] } }>(
+        `/api/ai/actions/${actionId}/${decision}`,
+        { method: 'POST' },
+      );
+      // 액션 실행 중 발생한 경고(예: 이미지 provider 미설정)를 채팅에 노출한다.
+      const warnings = res?.result?.warnings;
+      if (decision === 'approve' && Array.isArray(warnings) && warnings.length > 0) {
+        await streamAssistantText(`⚠️ ${warnings.join('\n')}`);
+      }
       setItems((prev) =>
         prev.map((item) =>
           item.kind === 'actions'
