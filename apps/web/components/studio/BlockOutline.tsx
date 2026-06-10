@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { apiFetch } from '@/lib/client/api';
 import type { EditorBlock } from '@/components/editor/BlockEditor';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -19,101 +17,23 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 function blockSummary(block: EditorBlock): string {
-  const c = block.content as { text?: string; title?: string; caption?: string };
-  return (c.text ?? c.title ?? c.caption ?? '').slice(0, 24) || '(비어 있음)';
+  const c = block.content as { text?: string; title?: string; caption?: string; docCode?: string };
+  return (c.text ?? c.title ?? c.caption ?? c.docCode ?? '').slice(0, 24) || '(비어 있음)';
 }
 
 type Props = {
-  documentId: string;
   blocks: EditorBlock[];
   selectedBlockId: string | null;
   onSelectBlock: (id: string) => void;
+  onAddBlock: () => void;
 };
 
-const EXPORT_FORMATS = [
-  { format: 'pdf', label: 'PDF' },
-  { format: 'docx', label: 'DOCX' },
-  { format: 'markdown', label: 'MD' },
-  { format: 'txt', label: 'TXT' },
-  { format: 'html', label: 'HTML' },
-] as const;
-
-/** 우측 문서 블록 목록 + 내보내기 사이드바 */
-export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBlock }: Props) {
-  const [exporting, setExporting] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [extracting, setExtracting] = useState(false);
-  const [extractResult, setExtractResult] = useState<string | null>(null);
-
-  async function handleExtract() {
-    setExtracting(true);
-    setExtractResult(null);
-    try {
-      const stats = await apiFetch<{
-        nodesCreated: number;
-        nodesLinked: number;
-        edgesCreated: number;
-      }>('/api/ontology/extract', {
-        method: 'POST',
-        body: JSON.stringify({ documentId }),
-      });
-      setExtractResult(
-        `노드 ${stats.nodesCreated}개 생성, 기존 ${stats.nodesLinked}개 연결, 관계 ${stats.edgesCreated}개`,
-      );
-    } catch (e) {
-      setExtractResult((e as Error).message);
-    } finally {
-      setExtracting(false);
-    }
-  }
-
-  async function handleExport(format: 'txt' | 'markdown' | 'pdf' | 'docx' | 'html') {
-    setExporting(format);
-    setExportError(null);
-    try {
-      const result = await apiFetch<{ jobId: string; downloadUrl: string }>('/api/exports', {
-        method: 'POST',
-        body: JSON.stringify({ documentId, format }),
-      });
-      window.open(result.downloadUrl, '_blank');
-    } catch (e) {
-      setExportError((e as Error).message);
-    } finally {
-      setExporting(null);
-    }
-  }
-
+/** 우측 문서 블록 패널 (참고 UI: 블록 목록 + 하단 블록 추가 버튼) */
+export function BlockOutline({ blocks, selectedBlockId, onSelectBlock, onAddBlock }: Props) {
   return (
-    <aside className="flex w-60 flex-col border-l border-zinc-200 bg-white">
+    <aside className="flex w-56 shrink-0 flex-col border-l border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-zinc-700">문서 블록</h2>
-      </div>
-      <div className="border-b border-zinc-200 p-3">
-        <p className="mb-2 text-xs font-semibold text-zinc-500">내보내기</p>
-        <div className="flex flex-wrap gap-1.5">
-          {EXPORT_FORMATS.map(({ format, label }) => (
-            <button
-              key={format}
-              onClick={() => handleExport(format)}
-              disabled={exporting !== null}
-              className="flex-1 rounded-md bg-zinc-900 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
-            >
-              {exporting === format ? '...' : label}
-            </button>
-          ))}
-        </div>
-        {exportError && <p className="mt-2 text-xs text-red-600">{exportError}</p>}
-      </div>
-      <div className="border-b border-zinc-200 p-3">
-        <p className="mb-2 text-xs font-semibold text-zinc-500">온톨로지</p>
-        <button
-          onClick={handleExtract}
-          disabled={extracting || blocks.length === 0}
-          className="w-full rounded-md border border-zinc-900 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-900 hover:text-white disabled:opacity-40"
-        >
-          {extracting ? '추출 중...' : '이 문서에서 지식 추출'}
-        </button>
-        {extractResult && <p className="mt-2 text-xs text-zinc-500">{extractResult}</p>}
+        <h2 className="text-xs font-bold text-zinc-700">문서 블록</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {blocks.length === 0 ? (
@@ -124,14 +44,18 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
               <li key={block.id}>
                 <button
                   onClick={() => onSelectBlock(block.id)}
-                  className={`w-full rounded-md px-2 py-1.5 text-left text-xs ${
+                  className={`w-full rounded-lg border px-2.5 py-2 text-left text-xs transition ${
                     selectedBlockId === block.id
-                      ? 'bg-zinc-100 text-zinc-900'
-                      : 'text-zinc-600 hover:bg-zinc-100'
+                      ? 'border-zinc-900 bg-zinc-900 text-white'
+                      : 'border-zinc-100 bg-zinc-50 text-zinc-600 hover:border-zinc-300'
                   }`}
                 >
-                  <span className="mr-1 text-zinc-400">
-                    {i + 1}. {TYPE_LABELS[block.type] ?? block.type}
+                  <span
+                    className={`mb-0.5 block text-[10px] font-semibold ${
+                      selectedBlockId === block.id ? 'text-zinc-300' : 'text-zinc-400'
+                    }`}
+                  >
+                    {i + 1} · {TYPE_LABELS[block.type] ?? block.type}
                   </span>
                   <span className="block truncate">{blockSummary(block)}</span>
                 </button>
@@ -139,6 +63,14 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
             ))}
           </ul>
         )}
+      </div>
+      <div className="border-t border-zinc-200 p-3">
+        <button
+          onClick={onAddBlock}
+          className="w-full rounded-lg bg-zinc-900 py-2 text-xs font-bold text-white hover:bg-zinc-700"
+        >
+          + 블록 추가
+        </button>
       </div>
     </aside>
   );

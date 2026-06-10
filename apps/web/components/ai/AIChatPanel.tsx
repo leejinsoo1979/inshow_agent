@@ -49,6 +49,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTeam, setActiveTeam] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
         }),
       });
       setSessionId(result.chatSessionId);
+      if (result.agentRole) setActiveTeam(result.agentRole.label);
       await streamAssistantText(result.reply.text, result.agentRole?.label);
       if (result.sources.length > 0) {
         setItems((prev) => [...prev, { kind: 'sources', sources: result.sources }]);
@@ -149,15 +151,31 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
 
   return (
     <div className="flex h-full flex-col bg-[#1c1c2a] text-zinc-100">
-      <header className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs font-bold text-zinc-900">
-          AI
-        </span>
-        <div>
-          <p className="text-sm font-semibold">AI 에이전트</p>
-          <p className="text-[11px] text-zinc-400">
-            {selectedBlockId ? '블록 선택됨 · 수정 요청 가능' : '문서 전체 모드'}
-          </p>
+      <header className="border-b border-white/10 px-4 pb-2.5 pt-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-xs font-bold text-zinc-900">
+            AI
+          </span>
+          <div>
+            <p className="text-sm font-semibold">AI 에이전트</p>
+            <p className="text-[11px] text-zinc-400">
+              {selectedBlockId ? '블록 선택됨 · 수정 요청 가능' : '문서 전체 모드'}
+            </p>
+          </div>
+        </div>
+        <div className="mt-2.5 flex flex-wrap gap-1">
+          {['콘텐츠팀', '법규팀', '시공디테일팀', '이미지팀', '지식관리팀', 'PM'].map((team) => (
+            <span
+              key={team}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                activeTeam?.startsWith(team)
+                  ? 'bg-white text-zinc-900'
+                  : 'bg-white/10 text-zinc-400'
+              }`}
+            >
+              {team}
+            </span>
+          ))}
         </div>
       </header>
 
@@ -257,6 +275,20 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
         {error && <p className="text-xs text-red-400">{error}</p>}
       </div>
 
+      <div className="flex gap-1.5 overflow-x-auto px-3 pb-1">
+        {['블로그 초안 작성해줘', '방화문 법규 알려줘', '공정별 비용 차트 만들어줘'].map(
+          (preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setInput(preset)}
+              className="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[10px] text-zinc-400 hover:border-white/40 hover:text-zinc-200"
+            >
+              {preset}
+            </button>
+          ),
+        )}
+      </div>
       <form onSubmit={handleSend} className="border-t border-white/10 p-3">
         <div className="flex items-end gap-2 rounded-xl bg-white/5 p-2">
           <textarea

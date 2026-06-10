@@ -82,6 +82,12 @@ type Props = {
   reloadKey?: number;
   /** 블록 목록 사이드바 등 외부에 현재 블록 상태 전달 */
   onBlocksLoaded?: (blocks: EditorBlock[]) => void;
+  /** 상단 바에 문서 메타 전달 */
+  onDocumentLoaded?: (doc: { id: string; projectId: string; title: string; status: string }) => void;
+  /** 상단 바에 저장 상태 전달 */
+  onSaveStateChange?: (state: 'idle' | 'saving' | 'saved') => void;
+  /** 외부(우측 패널)에서 블록 추가 메뉴 열기 트리거 */
+  openAddMenuKey?: number;
 };
 
 export function BlockEditor({
@@ -90,6 +96,9 @@ export function BlockEditor({
   onSelectBlock,
   reloadKey,
   onBlocksLoaded,
+  onDocumentLoaded,
+  onSaveStateChange,
+  openAddMenuKey,
 }: Props) {
   const [doc, setDoc] = useState<DocumentWithBlocks | null>(null);
   const [loading, setLoading] = useState(true);
@@ -116,8 +125,24 @@ export function BlockEditor({
   }, [load, reloadKey]);
 
   useEffect(() => {
-    if (doc) onBlocksLoaded?.(doc.blocks);
-  }, [doc, onBlocksLoaded]);
+    if (doc) {
+      onBlocksLoaded?.(doc.blocks);
+      onDocumentLoaded?.({
+        id: doc.id,
+        projectId: doc.projectId,
+        title: doc.title,
+        status: doc.status,
+      });
+    }
+  }, [doc, onBlocksLoaded, onDocumentLoaded]);
+
+  useEffect(() => {
+    onSaveStateChange?.(saveState);
+  }, [saveState, onSaveStateChange]);
+
+  useEffect(() => {
+    if (openAddMenuKey && openAddMenuKey > 0) setAddMenuOpen(true);
+  }, [openAddMenuKey]);
 
   /** 블록 내용 변경: 로컬 즉시 반영 + 800ms 디바운스 autosave */
   function handleBlockChange(blockId: string, content: Record<string, unknown>) {
@@ -215,13 +240,6 @@ export function BlockEditor({
 
   return (
     <div className="relative flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3">
-        <h1 className="text-lg font-bold">{doc.title}</h1>
-        <span className="text-xs text-zinc-400">
-          {saveState === 'saving' ? '저장 중...' : saveState === 'saved' ? '저장됨' : ''}
-        </span>
-      </header>
-
       {error && <p className="px-6 pt-2 text-sm text-red-600">{error}</p>}
 
       <div className="flex-1 overflow-y-auto px-6 py-6 pb-28">
