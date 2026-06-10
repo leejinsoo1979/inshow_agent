@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FiHash, FiPlus, FiSend } from 'react-icons/fi';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
+import { ResizeHandle, useResizable } from '@/components/studio/Resizable';
 
 type Me = { organizations: { workspaces: { id: string; name: string }[] }[] };
 type Channel = { id: string; name: string };
@@ -36,6 +37,20 @@ const AGENT_LABELS: Record<string, string> = {
 
 /** 메신저 + Task Center — 스튜디오 디자인 시스템 */
 export default function MessengerPage() {
+  const channelPanel = useResizable({
+    initial: 208,
+    min: 160,
+    max: 400,
+    side: 'left',
+    storageKey: 'archi.msg.channels.w',
+  });
+  const detailPanel = useResizable({
+    initial: 320,
+    min: 240,
+    max: 520,
+    side: 'right',
+    storageKey: 'archi.msg.detail.w',
+  });
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelId, setChannelId] = useState<string | null>(null);
@@ -156,7 +171,11 @@ export default function MessengerPage() {
       <NavRail />
 
       {/* 채널 목록 */}
-      <aside className="flex w-52 shrink-0 flex-col border-r border-zinc-200 bg-white">
+      <aside
+        style={{ width: channelPanel.width }}
+        className="relative flex shrink-0 flex-col border-r border-zinc-200 bg-white"
+      >
+        <ResizeHandle side="left" onPointerDown={channelPanel.onPointerDown} />
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-xs font-bold text-zinc-700">채널</h2>
         </div>
@@ -263,7 +282,11 @@ export default function MessengerPage() {
       </main>
 
       {/* Task Center */}
-      <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white">
+      <aside
+        style={{ width: detailPanel.width }}
+        className="relative flex shrink-0 flex-col border-l border-zinc-200 bg-white"
+      >
+        <ResizeHandle side="right" onPointerDown={detailPanel.onPointerDown} />
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-xs font-bold text-zinc-700">Task Center</h2>
           <p className="text-[10px] text-zinc-400">진행 중 {tasks.filter((t) => t.status === 'RUNNING').length} · 전체 {tasks.length}</p>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FiFileText, FiSearch, FiUploadCloud } from 'react-icons/fi';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
+import { ResizeHandle, useResizable } from '@/components/studio/Resizable';
 
 type Me = {
   organizations: { workspaces: { id: string; name: string }[] }[];
@@ -36,6 +37,13 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
 
 /** 지식베이스 — 스튜디오 디자인 시스템 (다크 네비 + 화이트 카드 + 우측 질의 패널) */
 export default function KnowledgePage() {
+  const queryPanel = useResizable({
+    initial: 320,
+    min: 240,
+    max: 520,
+    side: 'right',
+    storageKey: 'archi.kb.query.w',
+  });
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -276,7 +284,11 @@ export default function KnowledgePage() {
       </main>
 
       {/* 우측: 질의 패널 */}
-      <aside className="flex w-80 shrink-0 flex-col border-l border-zinc-200 bg-white">
+      <aside
+        style={{ width: queryPanel.width }}
+        className="relative flex shrink-0 flex-col border-l border-zinc-200 bg-white"
+      >
+        <ResizeHandle side="right" onPointerDown={queryPanel.onPointerDown} />
         <div className="border-b border-zinc-200 px-4 py-3">
           <h2 className="text-xs font-bold text-zinc-700">지식베이스 질의</h2>
           <p className="text-[10px] text-zinc-400">승인된 소스에서 근거와 함께 검색합니다</p>
