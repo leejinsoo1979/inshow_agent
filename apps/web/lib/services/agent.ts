@@ -297,12 +297,20 @@ async function planWithLlm(
 ): Promise<PlanResult> {
   const system = [
     args.role?.persona ?? '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
-    '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 다른 텍스트를 붙이지 마라.',
-    '형식: {"reply": "사용자에게 보여줄 한국어 응답", "blocks": [...], "updated_text": "선택 블록 수정안(선택)"}',
-    'blocks 항목은 다음 타입만 허용: heading {level:1|2|3, text}, paragraph {text}, checklist {title?, items:[{text, checked:false}]}, cta {text, buttonLabel?, url?}, chart {chartType:"bar"|"line"|"pie", title?, labels:[...], series:[{name?, values:[숫자...]}]}, image {prompt:"생성할 이미지 묘사", caption?:"캡션"}',
-    '사용자가 이미지를 원하거나 글에 어울리는 시각자료가 필요하면 image 블록을 적절한 위치에 넣어라. image 블록은 prompt만 주면 실제 이미지가 자동 생성된다.',
-    '문서에 삽입할 내용이 없으면 blocks는 빈 배열로 둔다.',
-    '사용자가 선택한 블록의 수정을 요청하면 updated_text에 수정안만 넣고 blocks는 비운다.',
+    '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 설명 텍스트를 붙이지 마라.',
+    '최상위 형식: {"reply": "...", "blocks": [...], "updated_text": "..."}',
+    'reply는 사용자에게 보여줄 짧은 한국어 안내 문장 1~2개다. 절대 reply에 JSON이나 블록 내용을 넣지 마라.',
+    '각 block은 반드시 {"type": "<타입>", "content": {...}} 형태다. 절대 {"heading": {...}} 처럼 타입을 키로 쓰지 마라.',
+    '허용 타입과 content:',
+    '- {"type":"heading","content":{"level":1,"text":"제목"}}',
+    '- {"type":"paragraph","content":{"text":"본문"}}',
+    '- {"type":"checklist","content":{"title":"제목","items":[{"text":"항목","checked":false}]}}',
+    '- {"type":"cta","content":{"text":"문구","buttonLabel":"버튼","url":"https://..."}}',
+    '- {"type":"chart","content":{"chartType":"bar","title":"제목","labels":["a","b"],"series":[{"name":"이름","values":[1,2]}]}}',
+    '- {"type":"image","content":{"prompt":"생성할 이미지 묘사","caption":"캡션"}}',
+    '이미지가 필요하면 image 블록을 넣어라(prompt만 주면 실제 이미지가 자동 생성된다).',
+    '삽입할 내용이 없으면 blocks는 [] 로 둔다.',
+    '선택한 블록 수정 요청이면 updated_text에 수정안 텍스트만 넣고 blocks는 [] 로 둔다.',
   ].join('\n');
 
   const prompt = [
@@ -315,15 +323,18 @@ async function planWithLlm(
 
   try {
     const result = await provider.generateText({ system, prompt, maxTokens: 3000 });
-    // 모델이 JSON 형식을 안 지키면 응답 텍스트를 그대로 답변으로 사용한다 (앵무새 대신 실제 응답).
     let parsed: z.infer<typeof llmPlanResponseSchema>;
     try {
-      parsed = llmPlanResponseSchema.parse(JSON.parse(extractJsonObject(result.text)));
+      const raw = JSON.parse(extractJsonObject(result.text)) as Record<string, unknown>;
+      // 모델이 블록을 {heading:{...}} 형태로 줘도 {type,content}로 정규화한다
+      if (Array.isArray(raw.blocks)) {
+        raw.blocks = (raw.blocks as unknown[]).map(normalizeBlock).filter(Boolean);
+      }
+      parsed = llmPlanResponseSchema.parse(raw);
     } catch {
-      return {
-        ok: true,
-        plan: { reply: result.text.trim() || '(빈 응답)', actions: [] },
-      };
+      // 그래도 실패하면 reply만 뽑아서 보여준다 (JSON 전체를 토하지 않게)
+      const replyOnly = extractReplyText(result.text);
+      return { ok: true, plan: { reply: replyOnly, actions: [] } };
     }
 
     const actions: AgentActionInput[] = [];
@@ -350,6 +361,50 @@ async function planWithLlm(
     console.warn('[agent] LLM 호출 실패:', message);
     return { ok: false, error: message.slice(0, 300) };
   }
+}
+
+const KNOWN_BLOCK_TYPES = [
+  'heading',
+  'paragraph',
+  'checklist',
+  'cta',
+  'chart',
+  'image',
+  'table',
+  'formula',
+  'doc_meta',
+  'qna',
+  'source_reference',
+];
+
+/** 모델이 {heading:{...}} 또는 {type,content} 어느 형태로 줘도 {type,content}로 정규화 */
+function normalizeBlock(block: unknown): unknown {
+  if (!block || typeof block !== 'object') return null;
+  const b = block as Record<string, unknown>;
+  if (typeof b.type === 'string' && b.content && typeof b.content === 'object') {
+    return { type: b.type, content: b.content };
+  }
+  // {heading: {...}} 형태: 알려진 타입 키 하나를 찾아 변환
+  const key = Object.keys(b).find((k) => KNOWN_BLOCK_TYPES.includes(k));
+  if (key && b[key] && typeof b[key] === 'object') {
+    return { type: key, content: b[key] };
+  }
+  return null;
+}
+
+/** 파싱 실패 시 JSON 전체 대신 reply 값만 추출 */
+function extractReplyText(text: string): string {
+  const m = text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (m?.[1]) {
+    try {
+      return JSON.parse(`"${m[1]}"`);
+    } catch {
+      return m[1];
+    }
+  }
+  // reply도 못 찾으면 JSON처럼 보이지 않는 텍스트만 반환
+  const trimmed = text.trim();
+  return trimmed.startsWith('{') ? '응답을 생성했습니다.' : trimmed || '(빈 응답)';
 }
 
 function extractJsonObject(text: string): string {
