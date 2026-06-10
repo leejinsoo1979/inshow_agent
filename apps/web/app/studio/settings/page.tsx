@@ -18,17 +18,23 @@ type LlmConfig = {
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Anthropic (Claude)',
-  openai: 'OpenAI',
+  openai: 'OpenAI (GPT)',
+  google: 'Google (Gemini)',
+  grok: 'xAI (Grok)',
   custom: 'Custom',
 };
+
 
 export default function SettingsPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [configs, setConfigs] = useState<LlmConfig[]>([]);
-  const [provider, setProvider] = useState('anthropic');
+  const [provider, setProvider] = useState('openai');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('claude-sonnet-4-6');
+  const [model, setModel] = useState('');
+  const [customModel, setCustomModel] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLive, setModelsLive] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,20 +55,34 @@ export default function SettingsPage() {
     if (workspaceId) loadConfigs(workspaceId);
   }, [workspaceId, loadConfigs]);
 
-  // OAuth 콜백 결과 표시
+  // provider 선택/키 등록 시 모델 목록을 서버에서 가져온다 (라이브 우선, 실패 시 폴백)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauth = params.get('oauth');
-    if (oauth === 'connected') {
-      const which = params.get('provider') === 'openai' ? 'ChatGPT' : 'Claude';
-      setNotice(`${which} 계정이 연결되었습니다. 이제 AI 에이전트가 실제 모델로 응답합니다.`);
-    } else if (oauth === 'error') {
-      setError(`LLM 계정 연결 실패: ${params.get('reason') ?? '알 수 없는 오류'}`);
+    if (!workspaceId || provider === 'custom') {
+      setModels([]);
+      return;
     }
-    if (oauth) {
-      window.history.replaceState(null, '', '/studio/settings');
-    }
-  }, []);
+    let cancelled = false;
+    setModelsLoading(true);
+    apiFetch<{ models: string[]; live: boolean }>(
+      `/api/settings/llm/models?workspaceId=${workspaceId}&provider=${provider}`,
+    )
+      .then((data) => {
+        if (cancelled) return;
+        setModels(data.models);
+        setModelsLive(data.live);
+        setCustomModel(false);
+        setModel((prev) => (data.models.includes(prev) ? prev : (data.models[0] ?? '')));
+      })
+      .catch(() => {
+        if (!cancelled) setModels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, provider, configs]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -119,46 +139,11 @@ export default function SettingsPage() {
           {notice && <p className="mb-4 text-sm text-zinc-700">{notice}</p>}
 
           <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-800">LLM 계정으로 연결 (OAuth)</h2>
-            <p className="mb-4 text-xs text-zinc-500">
-              API 키 없이 구독 계정으로 로그인해 에이전트를 연결합니다. 토큰은 암호화 저장되며
-              만료 시 자동 갱신됩니다.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => {
-                  if (workspaceId) {
-                    window.location.href = `/api/settings/llm/oauth/anthropic/start?workspaceId=${workspaceId}`;
-                  }
-                }}
-                disabled={!workspaceId || busy}
-                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
-              >
-                Claude 계정으로 연결 →
-              </button>
-              <button
-                onClick={() => {
-                  if (workspaceId) {
-                    window.location.href = `/api/settings/llm/oauth/openai/start?workspaceId=${workspaceId}`;
-                  }
-                }}
-                disabled={!workspaceId || busy}
-                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 hover:border-zinc-900 disabled:opacity-50"
-              >
-                ChatGPT 계정으로 연결 →
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] text-zinc-400">
-              각각 ANTHROPIC_OAUTH_CLIENT_ID / OPENAI_OAUTH_CLIENT_ID 환경변수가 필요합니다
-              (각 사의 OAuth 앱 클라이언트 ID).
-            </p>
-          </section>
-
-          <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-1 text-sm font-semibold text-zinc-800">에이전트 LLM API 등록</h2>
             <p className="mb-4 text-xs text-zinc-500">
-              API 키는 암호화되어 저장되며 화면에는 끝 4자리만 표시됩니다. 등록하면 AI
-              에이전트가 mock 대신 실제 모델로 초안을 생성합니다. (관리자 전용)
+              OpenAI(GPT), Google(Gemini), xAI(Grok) API 키를 등록합니다. API 키는 암호화되어
+              저장되며 화면에는 끝 4자리만 표시됩니다. 등록하면 AI 에이전트가 mock 대신 실제
+              모델로 응답합니다. (관리자 전용)
             </p>
             <form onSubmit={handleRegister} className="flex flex-col gap-3">
               <div className="flex gap-2">
@@ -166,26 +151,58 @@ export default function SettingsPage() {
                   value={provider}
                   onChange={(e) => {
                     setProvider(e.target.value);
-                    setModel(e.target.value === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6');
+                    setCustomModel(e.target.value === 'custom');
                   }}
                   className="rounded-lg border border-zinc-300 px-2 py-2 text-sm"
                 >
-                  <option value="anthropic">Anthropic (Claude)</option>
                   <option value="openai">OpenAI (GPT)</option>
+                  <option value="google">Google (Gemini)</option>
+                  <option value="grok">xAI (Grok)</option>
                   <option value="custom">Custom</option>
                 </select>
-                <input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="모델 (예: claude-sonnet-4-6)"
-                  className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                />
+                {!customModel && provider !== 'custom' && models.length > 0 ? (
+                  <select
+                    value={model}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setCustomModel(true);
+                        setModel('');
+                      } else {
+                        setModel(e.target.value);
+                      }
+                    }}
+                    className="flex-1 rounded-lg border border-zinc-300 px-2 py-2 text-sm"
+                  >
+                    {models.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                    <option value="__custom__">직접 입력…</option>
+                  </select>
+                ) : (
+                  <input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder={modelsLoading ? '모델 불러오는 중...' : '모델 ID 직접 입력'}
+                    className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  />
+                )}
               </div>
+              {provider !== 'custom' && (
+                <p className="-mt-1 text-[11px] text-zinc-400">
+                  {modelsLoading
+                    ? '모델 목록을 불러오는 중...'
+                    : modelsLive
+                      ? '✓ 등록된 키로 조회한 실시간 모델 목록입니다.'
+                      : '키 등록 전이라 기본 목록을 표시합니다. 키를 등록하면 실제 사용 가능한 모델로 갱신됩니다.'}
+                </p>
+              )}
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="API 키 (예: sk-ant-...)"
+                placeholder="API 키"
                 className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
               />
               <button

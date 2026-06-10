@@ -9,7 +9,7 @@ import {
   getLlmProviderForWorkspace,
   listLlmConfigs,
   registerLlmConfig,
-  saveOAuthConfig,
+  registerLlmConfigSchema,
 } from './llm-config';
 import { createProject } from './projects';
 import { createDocument, getDocument } from './documents';
@@ -25,12 +25,12 @@ describe('LLM API 등록', () => {
 
     const config = await registerLlmConfig(user.id, {
       workspaceId: workspace.id,
-      provider: 'anthropic',
-      apiKey: 'sk-ant-test-1234abcd',
-      model: 'claude-sonnet-4-6',
+      provider: 'openai',
+      apiKey: 'sk-proj-test-1234abcd',
+      model: 'gpt-4o',
     });
     expect(config.maskedApiKey).toBe('••••abcd');
-    expect(JSON.stringify(config)).not.toContain('sk-ant-test');
+    expect(JSON.stringify(config)).not.toContain('sk-proj-test');
 
     const configs = await listLlmConfigs(user.id, workspace.id);
     expect(configs).toHaveLength(1);
@@ -51,8 +51,8 @@ describe('LLM API 등록', () => {
     await expect(
       registerLlmConfig(editor.id, {
         workspaceId: workspace.id,
-        provider: 'anthropic',
-        apiKey: 'sk-ant-test-secret',
+        provider: 'openai',
+        apiKey: 'sk-proj-test-secret',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(listLlmConfigs(editor.id, workspace.id)).rejects.toMatchObject({
@@ -60,68 +60,42 @@ describe('LLM API 등록', () => {
     });
   });
 
-  it('Claude 계정 OAuth 연결: 토큰 암호화 저장, 마스킹 표시, provider 선택', async () => {
-    const { user, workspace } = await createUserWithWorkspace(); // OWNER
-
-    const config = await saveOAuthConfig(user.id, workspace.id, 'anthropic', {
-      access_token: 'oauth-access-비밀토큰-9999',
-      refresh_token: 'oauth-refresh-비밀-8888',
-      expires_in: 3600,
-    });
-    expect(config.authType).toBe('oauth');
-    expect(config.maskedApiKey).toBe('Claude 계정 연결됨');
-    expect(JSON.stringify(config)).not.toContain('비밀토큰');
-
-    // 목록에서도 토큰 원문 노출 없음
-    const configs = await listLlmConfigs(user.id, workspace.id);
-    expect(configs[0]!.authType).toBe('oauth');
-    expect(JSON.stringify(configs)).not.toContain('oauth-access');
-
-    // provider 선택 시 anthropic (만료 전이라 refresh 불필요)
-    const provider = await getLlmProviderForWorkspace(workspace.id);
-    expect(provider.name).toBe('anthropic');
-
-    // OAuth 연결 후 API 키 등록 시 교체된다
-    await registerLlmConfig(user.id, {
-      workspaceId: workspace.id,
-      provider: 'anthropic',
-      apiKey: 'sk-ant-new-key-1234',
-    });
-    const after = await listLlmConfigs(user.id, workspace.id);
-    expect(after).toHaveLength(1);
-    expect(after[0]!.authType).toBe('api_key');
-  });
-
-  it('EDITOR는 OAuth 연결을 만들 수 없다', async () => {
-    const { organization, workspace } = await createUserWithWorkspace();
-    const editor = await addMember(organization.id, Roles.EDITOR);
-    await expect(
-      saveOAuthConfig(editor.id, workspace.id, 'anthropic', { access_token: 'tok' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-  });
-
-  it('OpenAI: API 키 등록과 ChatGPT 계정 OAuth 모두 openai provider로 선택된다', async () => {
+  it('Google(Gemini)·Grok 키 등록 시 각 provider가 선택된다', async () => {
     const { user, workspace } = await createUserWithWorkspace();
 
-    // API 키 방식
     await registerLlmConfig(user.id, {
       workspaceId: workspace.id,
-      provider: 'openai',
-      apiKey: 'sk-proj-test-abcd1234',
-      model: 'gpt-4o',
+      provider: 'google',
+      apiKey: 'AIzaSy-test-gemini-1234',
+      model: 'gemini-2.0-flash',
     });
-    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('openai');
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('google');
 
-    // ChatGPT 계정 OAuth 방식 (교체)
-    const config = await saveOAuthConfig(user.id, workspace.id, 'openai', {
-      access_token: 'chatgpt-oauth-토큰-7777',
-      expires_in: 3600,
+    // 다른 provider로 교체
+    await registerLlmConfig(user.id, {
+      workspaceId: workspace.id,
+      provider: 'grok',
+      apiKey: 'xai-test-grok-5678',
+      model: 'grok-2-latest',
     });
-    expect(config.authType).toBe('oauth');
-    expect(JSON.stringify(await listLlmConfigs(user.id, workspace.id))).not.toContain(
-      'chatgpt-oauth',
-    );
-    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('openai');
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('grok');
+  });
+
+  it('Claude(anthropic)는 API provider 스키마에서 거부된다', async () => {
+    const { workspace } = await createUserWithWorkspace();
+    const result = registerLlmConfigSchema.safeParse({
+      workspaceId: workspace.id,
+      provider: 'anthropic',
+      apiKey: 'sk-ant-should-fail',
+    });
+    expect(result.success).toBe(false);
+    // 허용된 provider만 통과
+    for (const p of ['openai', 'google', 'grok'] as const) {
+      expect(
+        registerLlmConfigSchema.safeParse({ workspaceId: workspace.id, provider: p, apiKey: 'key12345' })
+          .success,
+      ).toBe(true);
+    }
   });
 
   it('등록된 provider가 선택되고, 삭제하면 mock으로 돌아간다', async () => {
@@ -130,10 +104,10 @@ describe('LLM API 등록', () => {
 
     const config = await registerLlmConfig(user.id, {
       workspaceId: workspace.id,
-      provider: 'anthropic',
-      apiKey: 'sk-ant-test-1234abcd',
+      provider: 'openai',
+      apiKey: 'sk-proj-test-1234abcd',
     });
-    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('anthropic');
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('openai');
 
     await deleteLlmConfig(user.id, config.id);
     expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('mock');

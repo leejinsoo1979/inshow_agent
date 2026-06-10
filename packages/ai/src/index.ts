@@ -3,6 +3,8 @@ export * from './agent-actions';
 export * from './mock-llm';
 export * from './anthropic';
 export * from './openai';
+export * from './gemini';
+export * from './grok';
 export * from './search-provider';
 export * from './mock-search';
 export * from './intent';

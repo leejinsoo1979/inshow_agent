@@ -1,14 +1,21 @@
 import { prisma } from '@archi/db';
-import { AnthropicProvider, MockLlmProvider, OpenAIProvider, type LlmProvider } from '@archi/ai';
+import {
+  GeminiProvider,
+  GrokProvider,
+  MockLlmProvider,
+  OpenAIProvider,
+  type LlmProvider,
+} from '@archi/ai';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireWorkspaceCapability } from '../authz';
 import { writeAuditLog } from '../audit';
 import { decryptSecret, encryptSecret, maskSecret } from '../crypto';
 
+// 지원 provider: OpenAI, Google(Gemini), Grok(xAI). Anthropic(Claude) API는 사용하지 않는다.
 export const registerLlmConfigSchema = z.object({
   workspaceId: z.string().min(1),
-  provider: z.enum(['anthropic', 'openai', 'custom']),
+  provider: z.enum(['openai', 'google', 'grok', 'custom']),
   apiKey: z.string().min(8, 'API 키를 입력해 주세요.').max(500),
   model: z.string().max(100).optional(),
   baseUrl: z.string().url('올바른 URL을 입력해 주세요.').optional(),
@@ -124,6 +131,75 @@ export const OAUTH_PROVIDERS = {
 } as const;
 
 export type OAuthProviderKey = keyof typeof OAUTH_PROVIDERS;
+
+// ─── 사용 가능한 모델 목록 (provider API에서 실시간 조회) ────────────────────
+
+/** 키 조회 실패 시 보여줄 최소 폴백 (선택지가 비지 않게). UI는 우선 라이브 목록을 쓴다. */
+const FALLBACK_MODELS: Record<string, string[]> = {
+  openai: ['gpt-4.1', 'gpt-4.1-mini', 'o4-mini', 'gpt-4o'],
+  google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  grok: ['grok-4', 'grok-3', 'grok-3-mini'],
+};
+
+/**
+ * 등록된 키로 provider의 모델 목록을 실시간 조회한다.
+ * 키가 없거나 호출 실패 시 폴백 목록을 반환한다. (하드코딩 최소화)
+ */
+export async function listAvailableModels(
+  userId: string,
+  workspaceId: string,
+  provider: 'openai' | 'google' | 'grok',
+): Promise<{ models: string[]; live: boolean }> {
+  await requireWorkspaceCapability(userId, workspaceId, Capabilities.MANAGE_LLM_PROVIDERS);
+  const config = await prisma.llmProviderConfig.findFirst({
+    where: { workspaceId, provider },
+  });
+  const apiKey = config?.encryptedApiKey ? decryptSecret(config.encryptedApiKey) : null;
+  if (!apiKey) return { models: FALLBACK_MODELS[provider] ?? [], live: false };
+
+  try {
+    const models = await fetchProviderModels(provider, apiKey, config?.baseUrl ?? undefined);
+    return models.length > 0
+      ? { models, live: true }
+      : { models: FALLBACK_MODELS[provider] ?? [], live: false };
+  } catch {
+    return { models: FALLBACK_MODELS[provider] ?? [], live: false };
+  }
+}
+
+async function fetchProviderModels(
+  provider: 'openai' | 'google' | 'grok',
+  apiKey: string,
+  baseUrl?: string,
+): Promise<string[]> {
+  if (provider === 'google') {
+    const base = baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com';
+    const res = await fetch(`${base}/v1beta/models?pageSize=200`, {
+      headers: { 'x-goog-api-key': apiKey },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] };
+    return (data.models ?? [])
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => (m.name ?? '').replace(/^models\//, ''))
+      .filter(Boolean)
+      .sort()
+      .reverse();
+  }
+  // openai / grok 은 OpenAI 호환 /v1/models
+  const base =
+    baseUrl?.replace(/\/$/, '') ||
+    (provider === 'grok' ? 'https://api.x.ai' : 'https://api.openai.com');
+  const res = await fetch(`${base}/v1/models`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { data?: { id?: string }[] };
+  return (data.data ?? [])
+    .map((m) => m.id ?? '')
+    .filter((id) => id && (provider === 'grok' || /^(gpt-|o\d|chatgpt)/.test(id)))
+    .sort();
+}
 
 export function isOAuthProvider(value: string): value is OAuthProviderKey {
   return value in OAUTH_PROVIDERS;
@@ -300,25 +376,23 @@ export async function getLlmProviderForWorkspace(workspaceId: string): Promise<L
     baseUrl: config.baseUrl ?? undefined,
   };
 
+  if (config.authType !== 'oauth' && !config.encryptedApiKey) return new MockLlmProvider();
+  const apiKey = config.encryptedApiKey ? decryptSecret(config.encryptedApiKey) : '';
+
   switch (config.provider) {
-    case 'anthropic': {
-      if (config.authType === 'oauth') {
-        const authToken = await ensureFreshOAuthToken('anthropic', config);
-        return new AnthropicProvider({ authToken, ...common });
-      }
-      if (!config.encryptedApiKey) return new MockLlmProvider();
-      return new AnthropicProvider({ apiKey: decryptSecret(config.encryptedApiKey), ...common });
-    }
     case 'openai': {
       if (config.authType === 'oauth') {
         const authToken = await ensureFreshOAuthToken('openai', config);
         return new OpenAIProvider({ authToken, ...common });
       }
-      if (!config.encryptedApiKey) return new MockLlmProvider();
-      return new OpenAIProvider({ apiKey: decryptSecret(config.encryptedApiKey), ...common });
+      return new OpenAIProvider({ apiKey, ...common });
     }
+    case 'google':
+      return new GeminiProvider({ apiKey, ...common });
+    case 'grok':
+      return new GrokProvider({ apiKey, ...common });
     default:
-      // custom 어댑터는 추후 추가. 등록은 가능하나 실행은 mock으로 폴백.
+      // anthropic(Claude API 비활성) / custom 등은 mock으로 폴백.
       return new MockLlmProvider();
   }
 }
