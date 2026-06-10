@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useCallback, useMemo, useState } from 'react';
+import { apiFetch } from '@/lib/client/api';
 import { AIChatPanel } from '@/components/ai/AIChatPanel';
 import { BlockEditor, type EditorBlock } from '@/components/editor/BlockEditor';
 import { BlockOutline } from '@/components/studio/BlockOutline';
@@ -37,6 +38,20 @@ export default function DocumentStudioPage({
   const [addMenuKey, setAddMenuKey] = useState(0);
 
   const handleDocumentChanged = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  /** 우측 패널에서 블록 삭제: DB 삭제 후 에디터 재로드 → 본문 컨테이너도 사라진다 */
+  const handleDeleteBlock = useCallback(
+    async (id: string) => {
+      setBlocks((prev) => prev.filter((b) => b.id !== id)); // 낙관적 갱신
+      setSelectedBlockId((prev) => (prev === id ? null : prev));
+      try {
+        await apiFetch(`/api/blocks/${id}`, { method: 'DELETE' });
+      } finally {
+        setReloadKey((k) => k + 1);
+      }
+    },
+    [],
+  );
 
   const selectedBlockLabel = useMemo(() => {
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -91,6 +106,7 @@ export default function DocumentStudioPage({
         selectedBlockId={selectedBlockId}
         onSelectBlock={setSelectedBlockId}
         onAddBlock={() => setAddMenuKey((k) => k + 1)}
+        onDeleteBlock={handleDeleteBlock}
       />
     </div>
   );
