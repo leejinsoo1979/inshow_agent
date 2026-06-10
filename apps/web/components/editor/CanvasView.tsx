@@ -15,23 +15,6 @@ const MIN_H = 36;
 const SNAP = 6; // 정렬 스냅/가이드가 작동하는 거리(px)
 const snap = (v: number) => Math.round(v / GRID) * GRID;
 
-/** 이동/리사이즈 중인 변(positions)을 정렬 후보(targets)에 맞춰 스냅. 가장 가까운 한 곳만 반환. */
-function snapAxis(
-  positions: number[],
-  targets: number[],
-): { delta: number; guide: number } | null {
-  let best: { dist: number; delta: number; guide: number } | null = null;
-  for (const p of positions) {
-    for (const t of targets) {
-      const dist = Math.abs(p - t);
-      if (dist <= SNAP && (!best || dist < best.dist)) {
-        best = { dist, delta: t - p, guide: t };
-      }
-    }
-  }
-  return best ? { delta: best.delta, guide: best.guide } : null;
-}
-
 const TYPE_LABELS: Record<string, string> = {
   heading: '제목',
   paragraph: '문단',
@@ -61,7 +44,7 @@ const DEFAULT_H: Record<string, number> = {
   qna: 240,
 };
 
-/** 8방향 리사이즈 핸들 정의: 어느 변이 움직이는지 + 위치/커서 */
+/** 8방향 리사이즈 핸들 정의: 위치/커서 */
 type Dir = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 const HANDLES: { dir: Dir; left: string; top: string; cursor: string }[] = [
   { dir: 'nw', left: '0%', top: '0%', cursor: 'cursor-nwse-resize' },
@@ -73,11 +56,27 @@ const HANDLES: { dir: Dir; left: string; top: string; cursor: string }[] = [
   { dir: 'sw', left: '0%', top: '100%', cursor: 'cursor-nesw-resize' },
   { dir: 'w', left: '0%', top: '50%', cursor: 'cursor-ew-resize' },
 ];
-
 const MOVES_LEFT: Dir[] = ['nw', 'w', 'sw'];
 const MOVES_RIGHT: Dir[] = ['ne', 'e', 'se'];
 const MOVES_TOP: Dir[] = ['nw', 'n', 'ne'];
 const MOVES_BOTTOM: Dir[] = ['sw', 's', 'se'];
+
+/** 이동/리사이즈 중인 변(positions)을 정렬 후보(targets)에 맞춰 스냅. 가장 가까운 한 곳만 반환. */
+function snapAxis(positions: number[], targets: number[]): { delta: number; guide: number } | null {
+  let best: { dist: number; delta: number; guide: number } | null = null;
+  for (const p of positions) {
+    for (const t of targets) {
+      const dist = Math.abs(p - t);
+      if (dist <= SNAP && (!best || dist < best.dist)) best = { dist, delta: t - p, guide: t };
+    }
+  }
+  return best ? { delta: best.delta, guide: best.guide } : null;
+}
+
+/** 두 사각형이 겹치는지 (마키 선택 판정) */
+function intersects(a: CanvasLayout, b: CanvasLayout): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
 
 /** 좌표가 없는 블록에 결정적(deterministic) 기본 배치를 부여 — 새로고침해도 위치가 튀지 않는다. */
 function resolveLayouts(blocks: EditorBlock[]): Record<string, CanvasLayout> {
@@ -108,10 +107,35 @@ type Props = {
   openAddMenuKey?: number;
 };
 
+type DragState =
+  | {
+      kind: 'move' | 'resize';
+      id: string;
+      dir?: Dir;
+      primaryBase: CanvasLayout;
+      bases: Record<string, CanvasLayout>;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    }
+  | {
+      kind: 'marquee';
+      ox: number;
+      oy: number;
+      addToSel: boolean;
+      baseSel: Set<string>;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    };
+
+type Clip = { type: string; content: Record<string, unknown>; canvas: CanvasLayout };
+
 /**
- * 자유 배치(캔버스) 모드 — 피그마/PPT처럼 블록을 클릭해 선택하고, 몸체를 드래그해 이동,
- * 8방향 핸들로 크기를 조절한다. 더블클릭하면 글자 편집 모드로 들어간다.
- * 위치/크기는 block.metadata.canvas 에 저장된다(DB 마이그레이션 없이 metadata 재사용).
+ * 자유 배치(캔버스) 모드 — 피그마/PPT처럼 동작한다.
+ * 클릭=선택 / Shift·⌘클릭=다중선택 토글 / 빈 공간 드래그=마키 선택 /
+ * 블록 드래그=이동(다중 선택 시 그룹 이동) / 핸들=크기 조절 / 더블클릭=글자 편집 /
+ * Del=삭제, ⌘·Ctrl+C·V=복사·붙여넣기. 위치/크기는 block.metadata.canvas 에 저장.
  */
 export function CanvasView({
   documentId,
@@ -125,25 +149,22 @@ export function CanvasView({
 }: Props) {
   const [doc, setDoc] = useState<DocumentWithBlocks | null>(null);
   const [layouts, setLayouts] = useState<Record<string, CanvasLayout>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] });
+  const [marquee, setMarquee] = useState<CanvasLayout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const layoutsRef = useRef(layouts);
   layoutsRef.current = layouts;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const lastPushedRef = useRef<string | null>(selectedBlockId); // 부모로 마지막에 보낸 primary
+  const artboardRef = useRef<HTMLDivElement>(null);
   const contentTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  // 캔버스 내부 클립보드 (Ctrl/Cmd+C → V 복사·붙여넣기)
-  const clipboardRef = useRef<{ type: string; content: Record<string, unknown>; canvas: CanvasLayout } | null>(null);
-  const dragRef = useRef<{
-    id: string;
-    kind: 'move' | 'resize';
-    dir?: Dir;
-    startX: number;
-    startY: number;
-    base: CanvasLayout;
-    moved: boolean;
-  } | null>(null);
+  const clipboardRef = useRef<Clip[] | null>(null);
+  const dragRef = useRef<DragState | null>(null);
 
   const load = useCallback(() => {
     apiFetch<DocumentWithBlocks>(`/api/documents/${documentId}`)
@@ -162,12 +183,7 @@ export function CanvasView({
   useEffect(() => {
     if (doc) {
       onBlocksLoaded?.(doc.blocks);
-      onDocumentLoaded?.({
-        id: doc.id,
-        projectId: doc.projectId,
-        title: doc.title,
-        status: doc.status,
-      });
+      onDocumentLoaded?.({ id: doc.id, projectId: doc.projectId, title: doc.title, status: doc.status });
     }
   }, [doc, onBlocksLoaded, onDocumentLoaded]);
 
@@ -175,95 +191,154 @@ export function CanvasView({
     onSaveStateChange?.(saveState);
   }, [saveState, onSaveStateChange]);
 
-  const deleteBlockById = useCallback(
-    async (id: string) => {
-      onSelectBlock(null);
+  // 외부(우측 블록 패널)에서 선택이 바뀌면 단일 선택으로 반영. 내 echo면 무시(루프 방지).
+  useEffect(() => {
+    if (selectedBlockId === lastPushedRef.current) return;
+    lastPushedRef.current = selectedBlockId;
+    setSelectedIds(selectedBlockId ? new Set([selectedBlockId]) : new Set());
+  }, [selectedBlockId]);
+
+  /** 선택 갱신 + 부모에 primary 통지 */
+  const applySelection = useCallback(
+    (ids: Set<string>, primary: string | null) => {
+      setSelectedIds(ids);
+      lastPushedRef.current = primary;
+      onSelectBlock(primary);
+    },
+    [onSelectBlock],
+  );
+
+  const persistCanvasMany = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    setSaveState('saving');
+    try {
+      await Promise.all(
+        ids.map((id) => {
+          const c = layoutsRef.current[id];
+          return c
+            ? apiFetch(`/api/blocks/${id}`, { method: 'PATCH', body: JSON.stringify({ canvas: c }) })
+            : Promise.resolve(undefined);
+        }),
+      );
+      setSaveState('saved');
+    } catch {
+      setSaveState('idle');
+    }
+  }, []);
+
+  const deleteBlocks = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return;
+      applySelection(new Set(), null);
       setEditingId(null);
-      // 낙관적 삭제: 화면에서 즉시 제거하고 API는 백그라운드로. 실패 시에만 복구.
-      const pending = contentTimers.current.get(id);
-      if (pending) {
-        clearTimeout(pending);
-        contentTimers.current.delete(id);
-      }
-      setDoc((prev) => (prev ? { ...prev, blocks: prev.blocks.filter((b) => b.id !== id) } : prev));
+      // 낙관적 삭제: 즉시 화면에서 제거, API는 백그라운드. 실패 시 복구.
+      ids.forEach((id) => {
+        const t = contentTimers.current.get(id);
+        if (t) {
+          clearTimeout(t);
+          contentTimers.current.delete(id);
+        }
+      });
+      setDoc((prev) => (prev ? { ...prev, blocks: prev.blocks.filter((b) => !ids.includes(b.id)) } : prev));
       setLayouts((prev) => {
         const next = { ...prev };
-        delete next[id];
+        ids.forEach((id) => delete next[id]);
         return next;
       });
       try {
-        await apiFetch(`/api/blocks/${id}`, { method: 'DELETE' });
+        await Promise.all(ids.map((id) => apiFetch(`/api/blocks/${id}`, { method: 'DELETE' })));
       } catch (e) {
         setError((e as Error).message);
-        load(); // 실패 시 서버 상태로 복구
+        load();
       }
     },
-    [onSelectBlock, load],
+    [applySelection, load],
   );
 
-  const pasteBlock = useCallback(async () => {
-    const clip = clipboardRef.current;
-    if (!clip) return;
-    try {
-      const created = await apiFetch<{ id: string }>(`/api/documents/${documentId}/blocks`, {
-        method: 'POST',
-        body: JSON.stringify({ block: { type: clip.type, content: clip.content } }),
-      });
-      // 원본에서 살짝 어긋난 위치에 배치 (피그마/PPT 붙여넣기 관습)
-      const canvas: CanvasLayout = {
-        x: clip.canvas.x + 24,
-        y: clip.canvas.y + 24,
-        w: clip.canvas.w,
-        h: clip.canvas.h,
-      };
-      await apiFetch(`/api/blocks/${created.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ canvas }),
-      });
-      load();
-      onSelectBlock(created.id);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [documentId, load, onSelectBlock]);
+  const pasteBlocks = useCallback(async () => {
+    const clips = clipboardRef.current;
+    if (!clips?.length) return;
+    // 병렬 생성 + 항목별 독립 처리 (하나 실패해도 나머지는 붙여넣어짐)
+    const results = await Promise.all(
+      clips.map(async (clip) => {
+        try {
+          const created = await apiFetch<{ id: string }>(`/api/documents/${documentId}/blocks`, {
+            method: 'POST',
+            body: JSON.stringify({ block: { type: clip.type, content: clip.content } }),
+          });
+          const canvas: CanvasLayout = {
+            x: clip.canvas.x + 24,
+            y: clip.canvas.y + 24,
+            w: clip.canvas.w,
+            h: clip.canvas.h,
+          };
+          await apiFetch(`/api/blocks/${created.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ canvas }),
+          });
+          return created.id;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const newIds = results.filter((id): id is string => id !== null);
+    load();
+    applySelection(new Set(newIds), newIds[0] ?? null);
+  }, [documentId, load, applySelection]);
 
-  // 캔버스 키보드 단축키: Esc(편집 종료) / Backspace·Delete(삭제) / Cmd·Ctrl+C·V(복사·붙여넣기)
+  // 키보드: Esc / Backspace·Delete(삭제) / ⌘·Ctrl+C·V(복사·붙여넣기) — 다중 선택 일괄 처리
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setEditingId(null);
+        applySelection(new Set(), null);
         return;
       }
-      // 글자 편집 중이거나 입력 요소에 포커스가 있으면 일반 텍스트 동작을 그대로 둔다.
       if (editingId) return;
       const ae = document.activeElement as HTMLElement | null;
       const tag = ae?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ae?.isContentEditable) return;
 
+      const ids = [...selectedIdsRef.current];
       const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        const all = Object.keys(layoutsRef.current);
+        applySelection(new Set(all), all[0] ?? null);
+        return;
+      }
       if (mod && (e.key === 'c' || e.key === 'C')) {
-        if (!selectedBlockId) return;
-        const blk = doc?.blocks.find((b) => b.id === selectedBlockId);
-        const canvas = layoutsRef.current[selectedBlockId];
-        if (blk && canvas) clipboardRef.current = { type: blk.type, content: blk.content, canvas };
+        if (!ids.length || !doc) return;
+        const order = new Map(doc.blocks.map((b, i) => [b.id, i]));
+        const clips = ids
+          .slice()
+          .sort((p, q) => (order.get(p) ?? 0) - (order.get(q) ?? 0))
+          .map((id) => {
+            const blk = doc.blocks.find((b) => b.id === id);
+            const canvas = layoutsRef.current[id];
+            return blk && canvas ? { type: blk.type, content: blk.content, canvas } : null;
+          })
+          .filter((c): c is Clip => c !== null);
+        clipboardRef.current = clips;
         return;
       }
       if (mod && (e.key === 'v' || e.key === 'V')) {
         e.preventDefault();
-        void pasteBlock();
+        void pasteBlocks();
         return;
       }
       if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (!selectedBlockId) return;
+        if (!ids.length) return;
         e.preventDefault();
-        void deleteBlockById(selectedBlockId);
+        void deleteBlocks(ids);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editingId, selectedBlockId, doc, deleteBlockById, pasteBlock]);
+  }, [editingId, doc, applySelection, deleteBlocks, pasteBlocks]);
 
-  // 우측 패널 '+ 블록 추가' → 문단 블록을 만들고 캔버스에 배치
+  // 우측 패널 '+ 블록 추가'
   const addBlockKey = useRef(openAddMenuKey);
   useEffect(() => {
     if (openAddMenuKey === undefined || openAddMenuKey === addBlockKey.current) return;
@@ -281,31 +356,37 @@ export function CanvasView({
     })();
   }, [openAddMenuKey, documentId, load]);
 
-  const persistCanvas = useCallback(async (id: string) => {
-    const c = layoutsRef.current[id];
-    if (!c) return;
-    setSaveState('saving');
-    try {
-      await apiFetch(`/api/blocks/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ canvas: c }),
-      });
-      setSaveState('saved');
-    } catch {
-      setSaveState('idle');
-    }
-  }, []);
-
+  // ── 포인터 드래그 (이동/리사이즈/마키) ──────────────────────────────
   const onPointerMove = useCallback((e: PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
+
+    if (d.kind === 'marquee') {
+      const rect = artboardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const x = Math.min(d.ox, cx);
+      const y = Math.min(d.oy, cy);
+      const w = Math.abs(cx - d.ox);
+      const h = Math.abs(cy - d.oy);
+      if (w > 3 || h > 3) d.moved = true;
+      const box: CanvasLayout = { x, y, w, h };
+      setMarquee(box);
+      const hits = Object.entries(layoutsRef.current)
+        .filter(([, l]) => intersects(box, l))
+        .map(([id]) => id);
+      const sel = d.addToSel ? new Set([...d.baseSel, ...hits]) : new Set(hits);
+      setSelectedIds(sel);
+      return;
+    }
+
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) d.moved = true;
 
-    // 정렬 후보: 다른 블록들의 좌/중심/우(상/중심/하) + 페이지 가장자리·중심
     const others = Object.entries(layoutsRef.current)
-      .filter(([id]) => id !== d.id)
+      .filter(([id]) => !d.bases[id])
       .map(([, l]) => l);
     const targetsX = [0, PAGE_W / 2, PAGE_W];
     const targetsY = [0, PAGE_H / 2, PAGE_H];
@@ -316,67 +397,77 @@ export function CanvasView({
 
     setLayouts((prev) => {
       const next = { ...prev };
-      const b = d.base;
       const nextGuides: { x: number[]; y: number[] } = { x: [], y: [] };
+      const pb = d.primaryBase;
 
       if (d.kind === 'move') {
-        let x = Math.max(0, snap(b.x + dx));
-        let y = Math.max(0, snap(b.y + dy));
-        const sx = snapAxis([x, x + b.w / 2, x + b.w], targetsX);
+        let px = Math.max(0, snap(pb.x + dx));
+        let py = Math.max(0, snap(pb.y + dy));
+        const sx = snapAxis([px, px + pb.w / 2, px + pb.w], targetsX);
         if (sx) {
-          x += sx.delta;
+          px += sx.delta;
           nextGuides.x.push(sx.guide);
         }
-        const sy = snapAxis([y, y + b.h / 2, y + b.h], targetsY);
+        const sy = snapAxis([py, py + pb.h / 2, py + pb.h], targetsY);
         if (sy) {
-          y += sy.delta;
+          py += sy.delta;
           nextGuides.y.push(sy.guide);
         }
-        next[d.id] = { ...b, x, y };
+        // 그룹 전체에 같은 델타 적용 (그룹이 페이지 밖으로 나가지 않도록 클램프)
+        let ddx = px - pb.x;
+        let ddy = py - pb.y;
+        const baseEntries = Object.entries(d.bases);
+        const minX = Math.min(...baseEntries.map(([, b]) => b.x));
+        const minY = Math.min(...baseEntries.map(([, b]) => b.y));
+        ddx = Math.max(ddx, -minX);
+        ddy = Math.max(ddy, -minY);
+        for (const [id, b] of baseEntries) {
+          next[id] = { ...b, x: b.x + ddx, y: b.y + ddy };
+        }
         setGuides(nextGuides);
         return next;
       }
 
-      // resize — 방향에 따라 움직이는 변만 갱신 (움직이는 변을 정렬 후보에 스냅)
+      // resize (단일)
       const dir = d.dir!;
-      let { x, y, w, h } = b;
+      let { x, y, w, h } = pb;
       if (MOVES_LEFT.includes(dir)) {
-        let left = snap(b.x + dx);
-        const sx = snapAxis([left], targetsX);
-        if (sx) {
-          left += sx.delta;
-          nextGuides.x.push(sx.guide);
+        let left = snap(pb.x + dx);
+        const s = snapAxis([left], targetsX);
+        if (s) {
+          left += s.delta;
+          nextGuides.x.push(s.guide);
         }
-        x = Math.max(0, Math.min(left, b.x + b.w - MIN_W));
-        w = b.x + b.w - x;
+        x = Math.max(0, Math.min(left, pb.x + pb.w - MIN_W));
+        w = pb.x + pb.w - x;
       }
       if (MOVES_RIGHT.includes(dir)) {
-        let right = snap(b.x + b.w + dx);
-        const sx = snapAxis([right], targetsX);
-        if (sx) {
-          right += sx.delta;
-          nextGuides.x.push(sx.guide);
+        let right = snap(pb.x + pb.w + dx);
+        const s = snapAxis([right], targetsX);
+        if (s) {
+          right += s.delta;
+          nextGuides.x.push(s.guide);
         }
-        w = Math.max(MIN_W, right - b.x);
+        w = Math.max(MIN_W, right - pb.x);
       }
       if (MOVES_TOP.includes(dir)) {
-        let top = snap(b.y + dy);
-        const sy = snapAxis([top], targetsY);
-        if (sy) {
-          top += sy.delta;
-          nextGuides.y.push(sy.guide);
+        let top = snap(pb.y + dy);
+        const s = snapAxis([top], targetsY);
+        if (s) {
+          top += s.delta;
+          nextGuides.y.push(s.guide);
         }
-        y = Math.max(0, Math.min(top, b.y + b.h - MIN_H));
-        h = b.y + b.h - y;
+        y = Math.max(0, Math.min(top, pb.y + pb.h - MIN_H));
+        h = pb.y + pb.h - y;
       }
       if (MOVES_BOTTOM.includes(dir)) {
-        let bottom = snap(b.y + b.h + dy);
-        const sy = snapAxis([bottom], targetsY);
-        if (sy) {
-          bottom += sy.delta;
-          nextGuides.y.push(sy.guide);
+        let bottom = snap(pb.y + pb.h + dy);
+        const s = snapAxis([bottom], targetsY);
+        if (s) {
+          bottom += s.delta;
+          nextGuides.y.push(s.guide);
         }
-        h = Math.max(MIN_H, bottom - b.y);
+        h = Math.max(MIN_H, bottom - pb.y);
       }
       next[d.id] = { x, y, w, h };
       setGuides(nextGuides);
@@ -389,22 +480,89 @@ export function CanvasView({
     dragRef.current = null;
     window.removeEventListener('pointermove', onPointerMove);
     setGuides({ x: [], y: [] });
-    if (d && d.moved) void persistCanvas(d.id);
-  }, [onPointerMove, persistCanvas]);
+    setMarquee(null);
+    if (!d) return;
+    if (d.kind === 'marquee') {
+      const ids = [...selectedIdsRef.current];
+      applySelection(new Set(ids), ids[0] ?? null);
+      return;
+    }
+    if (d.moved) persistCanvasMany(Object.keys(d.bases));
+  }, [onPointerMove, persistCanvasMany, applySelection]);
 
-  const beginDrag = useCallback(
+  const startListeners = useCallback(() => {
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp, { once: true });
+  }, [onPointerMove, onPointerUp]);
+
+  const beginBlockDrag = useCallback(
     (e: React.PointerEvent, id: string, kind: 'move' | 'resize', dir?: Dir) => {
       e.preventDefault();
       e.stopPropagation();
       if (editingId && editingId !== id) setEditingId(null);
-      onSelectBlock(id);
-      const base = layoutsRef.current[id];
-      if (!base) return;
-      dragRef.current = { id, kind, dir, startX: e.clientX, startY: e.clientY, base, moved: false };
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp, { once: true });
+
+      // 이동 대상 집합 결정
+      let movingSet: Set<string>;
+      if (kind === 'resize') {
+        movingSet = new Set([id]);
+      } else if (selectedIdsRef.current.has(id) && selectedIdsRef.current.size > 1) {
+        movingSet = new Set(selectedIdsRef.current); // 그룹 이동
+      } else {
+        movingSet = new Set([id]);
+        applySelection(movingSet, id);
+      }
+
+      const bases: Record<string, CanvasLayout> = {};
+      movingSet.forEach((mid) => {
+        const l = layoutsRef.current[mid];
+        if (l) bases[mid] = l;
+      });
+      const primaryBase = layoutsRef.current[id];
+      if (!primaryBase) return;
+      dragRef.current = { kind, id, dir, primaryBase, bases, startX: e.clientX, startY: e.clientY, moved: false };
+      startListeners();
     },
-    [editingId, onSelectBlock, onPointerMove, onPointerUp],
+    [editingId, applySelection, startListeners],
+  );
+
+  const onBlockPointerDown = useCallback(
+    (e: React.PointerEvent, id: string) => {
+      e.stopPropagation();
+      if (editingId === id) return; // 편집 중 블록은 입력 우선
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+      if (additive) {
+        e.preventDefault();
+        const next = new Set(selectedIdsRef.current);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        applySelection(next, next.size ? id : null);
+        return;
+      }
+      beginBlockDrag(e, id, 'move');
+    },
+    [editingId, applySelection, beginBlockDrag],
+  );
+
+  const onArtboardPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      const rect = artboardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+      setEditingId(null);
+      if (!additive) applySelection(new Set(), null);
+      dragRef.current = {
+        kind: 'marquee',
+        ox: e.clientX - rect.left,
+        oy: e.clientY - rect.top,
+        addToSel: additive,
+        baseSel: new Set(selectedIdsRef.current),
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+      };
+      startListeners();
+    },
+    [applySelection, startListeners],
   );
 
   function handleContentChange(id: string, content: Record<string, unknown>) {
@@ -419,10 +577,7 @@ export function CanvasView({
       id,
       setTimeout(async () => {
         try {
-          await apiFetch(`/api/blocks/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ content }),
-          });
+          await apiFetch(`/api/blocks/${id}`, { method: 'PATCH', body: JSON.stringify({ content }) });
           setSaveState('saved');
         } catch {
           setSaveState('idle');
@@ -434,9 +589,7 @@ export function CanvasView({
   const blocks = useMemo(() => doc?.blocks ?? [], [doc]);
 
   if (error) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-red-500">{error}</div>
-    );
+    return <div className="flex h-full items-center justify-center text-sm text-red-500">{error}</div>;
   }
 
   return (
@@ -447,34 +600,41 @@ export function CanvasView({
         </div>
       ) : (
         <div
-          className="relative mx-auto bg-white shadow-md ring-1 ring-zinc-300"
+          ref={artboardRef}
+          className="relative mx-auto select-none bg-white shadow-md ring-1 ring-zinc-300"
           style={{ width: PAGE_W, minHeight: PAGE_H }}
-          onPointerDown={() => {
-            onSelectBlock(null);
-            setEditingId(null);
-          }}
+          onPointerDown={onArtboardPointerDown}
         >
-          {/* 정렬 가이드 (드래그 중, X/Y축이 맞을 때) */}
+          {/* 정렬 가이드 */}
           {guides.x.map((gx, i) => (
             <div
               key={`gx-${i}`}
-              className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-rose-500"
+              className="pointer-events-none absolute bottom-0 top-0 z-30 w-px bg-rose-500"
               style={{ left: gx }}
             />
           ))}
           {guides.y.map((gy, i) => (
             <div
               key={`gy-${i}`}
-              className="pointer-events-none absolute left-0 right-0 z-20 h-px bg-rose-500"
+              className="pointer-events-none absolute left-0 right-0 z-30 h-px bg-rose-500"
               style={{ top: gy }}
             />
           ))}
 
+          {/* 마키(드래그) 선택 박스 */}
+          {marquee && (
+            <div
+              className="pointer-events-none absolute z-20 border border-zinc-900/60 bg-zinc-900/5"
+              style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
+            />
+          )}
+
           {blocks.map((block) => {
             const l = layouts[block.id];
             if (!l) return null;
-            const selected = selectedBlockId === block.id;
+            const selected = selectedIds.has(block.id);
             const editing = editingId === block.id;
+            const single = selected && selectedIds.size === 1;
             return (
               <div
                 key={block.id}
@@ -484,24 +644,17 @@ export function CanvasView({
                     : 'outline outline-1 outline-transparent hover:outline-zinc-300'
                 }`}
                 style={{ left: l.x, top: l.y, width: l.w, height: l.h }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  if (!editing) {
-                    // 편집 중이 아니면 몸체 어디서든 잡아서 이동 (피그마/PPT 방식)
-                    beginDrag(e, block.id, 'move');
-                  }
-                }}
+                onPointerDown={(e) => onBlockPointerDown(e, block.id)}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  onSelectBlock(block.id);
+                  applySelection(new Set([block.id]), block.id);
                   setEditingId(block.id);
                 }}
               >
-                {/* 본문 — 편집 모드에서만 입력 가능, 아니면 포인터 이벤트를 막아 이동 우선 */}
                 <div
                   className={`h-full w-full overflow-auto rounded-md bg-white p-3 ${
-                    editing ? '' : 'pointer-events-none'
-                  } ${selected ? '' : 'cursor-default'}`}
+                    editing ? 'select-text' : 'pointer-events-none'
+                  }`}
                   style={editing ? undefined : { cursor: 'move' }}
                 >
                   <BlockContentEditor
@@ -511,21 +664,19 @@ export function CanvasView({
                   />
                 </div>
 
-                {/* 타입 라벨 (선택 시, 좌상단 바깥) */}
-                {selected && (
+                {single && (
                   <span className="pointer-events-none absolute -top-5 left-0 rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {TYPE_LABELS[block.type] ?? block.type}
                     {!editing && <span className="ml-1 opacity-60">더블클릭=편집</span>}
                   </span>
                 )}
 
-                {/* 8방향 리사이즈 핸들 (선택 & 비편집 시) */}
-                {selected &&
+                {single &&
                   !editing &&
                   HANDLES.map((hd) => (
                     <div
                       key={hd.dir}
-                      onPointerDown={(e) => beginDrag(e, block.id, 'resize', hd.dir)}
+                      onPointerDown={(e) => beginBlockDrag(e, block.id, 'resize', hd.dir)}
                       className={`absolute z-10 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-zinc-900 bg-white ${hd.cursor}`}
                       style={{ left: hd.left, top: hd.top }}
                     />
