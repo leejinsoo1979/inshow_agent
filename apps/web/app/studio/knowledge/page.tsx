@@ -309,7 +309,7 @@ export default function KnowledgePage() {
               {queryResult.citations.map((citation) => (
                 <div
                   key={citation.chunkId}
-                  className="rounded-xl border-l-4 border-zinc-900 bg-zinc-50 p-3"
+                  className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
                 >
                   <p className="text-[11px] font-bold text-zinc-800">
                     {citation.title}

@@ -143,7 +143,7 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
     case 'source_reference': {
       const c = content as unknown as SourceReferenceContent;
       return (
-        <div className="flex flex-col gap-1 rounded-lg border-l-4 border-zinc-400 bg-zinc-50 p-3">
+        <div className="flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
           <input
             value={c.title}
             placeholder="출처 제목"
@@ -418,7 +418,7 @@ function FormulaBlockEditor({
 }) {
   const variables = content.variables ?? [];
   return (
-    <div className="flex flex-col gap-2 rounded-lg border-l-4 border-zinc-900 bg-zinc-50 p-3">
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
       <input
         value={content.title ?? ''}
         placeholder="계산식 제목 (예: 열관류율 계산)"
