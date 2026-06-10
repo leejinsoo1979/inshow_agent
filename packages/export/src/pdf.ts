@@ -42,7 +42,9 @@ export class PdfExporter implements Exporter {
     let font: PDFFont;
     if (options?.fontBytes) {
       pdf.registerFontkit(fontkit);
-      font = await pdf.embedFont(options.fontBytes, { subset: true });
+      // subset: false — OTF/CFF 폰트를 subset하면 Quartz/Preview에서 한글 글리프가 깨진다.
+      // 전체 폰트를 임베드해 모든 뷰어에서 정상 렌더되게 한다(파일 크기는 커진다).
+      font = await pdf.embedFont(options.fontBytes, { subset: false });
     } else {
       font = await pdf.embedFont('Helvetica');
     }
