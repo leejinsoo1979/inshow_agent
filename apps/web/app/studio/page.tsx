@@ -190,7 +190,8 @@ export default function StudioDashboardPage() {
           projectId,
           title: `제목 없는 ${docType.label}`,
           type: docType.type,
-          withTemplate: true,
+          // 빈 문서로 시작 — 블록은 사용자가 +로 직접 추가한다
+          withTemplate: false,
         }),
       });
       router.push(`/studio/${doc.id}`);
