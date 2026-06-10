@@ -4,6 +4,7 @@ import { use, useCallback, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/client/api';
 import { AIChatPanel } from '@/components/ai/AIChatPanel';
 import { BlockEditor, type EditorBlock } from '@/components/editor/BlockEditor';
+import { CanvasView } from '@/components/editor/CanvasView';
 import { BlockOutline } from '@/components/studio/BlockOutline';
 import { NavRail } from '@/components/studio/NavRail';
 import { TopBar } from '@/components/studio/TopBar';
@@ -36,6 +37,7 @@ export default function DocumentStudioPage({
   const [docMeta, setDocMeta] = useState<DocMeta | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [addMenuKey, setAddMenuKey] = useState(0);
+  const [viewMode, setViewMode] = useState<'doc' | 'canvas'>('doc');
 
   const handleDocumentChanged = useCallback(() => setReloadKey((k) => k + 1), []);
 
@@ -84,9 +86,52 @@ export default function DocumentStudioPage({
           status={docMeta?.status ?? 'DRAFT'}
           saveState={saveState}
         />
-        <div className="min-h-0 flex-1 overflow-hidden p-4">
-          <div className="mx-auto h-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <BlockEditor
+
+        {/* 보기 전환: 문서(세로 흐름) ↔ 캔버스(자유 배치) */}
+        <div className="flex items-center gap-1 border-b border-zinc-200 bg-white px-4 py-1.5">
+          {(
+            [
+              ['doc', '문서'],
+              ['canvas', '캔버스'],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                viewMode === mode
+                  ? 'bg-zinc-900 text-white'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {viewMode === 'canvas' && (
+            <span className="ml-2 text-[11px] text-zinc-400">
+              그립(⠿)으로 이동 · 우하단 모서리로 크기 조절
+            </span>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {viewMode === 'doc' ? (
+            <div className="h-full p-4">
+              <div className="mx-auto h-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <BlockEditor
+                  documentId={documentId}
+                  selectedBlockId={selectedBlockId}
+                  onSelectBlock={setSelectedBlockId}
+                  reloadKey={reloadKey}
+                  onBlocksLoaded={setBlocks}
+                  onDocumentLoaded={setDocMeta}
+                  onSaveStateChange={setSaveState}
+                  openAddMenuKey={addMenuKey}
+                />
+              </div>
+            </div>
+          ) : (
+            <CanvasView
               documentId={documentId}
               selectedBlockId={selectedBlockId}
               onSelectBlock={setSelectedBlockId}
@@ -96,7 +141,7 @@ export default function DocumentStudioPage({
               onSaveStateChange={setSaveState}
               openAddMenuKey={addMenuKey}
             />
-          </div>
+          )}
         </div>
       </main>
 

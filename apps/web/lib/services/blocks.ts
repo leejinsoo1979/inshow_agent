@@ -10,9 +10,19 @@ export const addBlockSchema = z.object({
   block: blockInputSchema,
 });
 
+/** 캔버스(자유 배치) 모드에서의 블록 위치/크기 (px, 아트보드 기준) */
+export const canvasLayoutSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number().min(20),
+  h: z.number().min(20),
+});
+
 export const updateBlockSchema = z.object({
   content: z.record(z.unknown()).optional(),
   metadata: z.record(z.unknown()).optional(),
+  // 캔버스 배치만 갱신할 때 사용 — 기존 metadata를 보존한 채 metadata.canvas만 병합한다.
+  canvas: canvasLayoutSchema.nullable().optional(),
 });
 
 export const reorderBlocksSchema = z.object({
@@ -99,11 +109,21 @@ export async function updateBlock(
     }
   }
 
+  // 캔버스 배치가 들어오면 기존 metadata를 보존한 채 canvas만 병합한다.
+  let metadata = input.metadata as Prisma.InputJsonValue | undefined;
+  if (input.canvas !== undefined) {
+    const existingMeta =
+      existing.metadata && typeof existing.metadata === 'object'
+        ? (existing.metadata as Record<string, unknown>)
+        : {};
+    metadata = { ...existingMeta, canvas: input.canvas } as Prisma.InputJsonValue;
+  }
+
   const block = await prisma.documentBlock.update({
     where: { id: blockId },
     data: {
       content: input.content as Prisma.InputJsonValue | undefined,
-      metadata: input.metadata as Prisma.InputJsonValue | undefined,
+      metadata,
     },
   });
   await writeAuditLog({

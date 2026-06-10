@@ -8,11 +8,14 @@ import { ImageGenerateModal } from '@/components/image/ImageGenerateModal';
 import { InpaintModal } from '@/components/image/InpaintModal';
 import { BlockContentEditor } from './BlockContentEditor';
 
+export type CanvasLayout = { x: number; y: number; w: number; h: number };
+
 export type EditorBlock = {
   id: string;
   type: string;
   sortOrder: number;
   content: Record<string, unknown>;
+  metadata?: { canvas?: CanvasLayout | null } & Record<string, unknown>;
 };
 
 export type DocumentWithBlocks = {
@@ -140,8 +143,13 @@ export function BlockEditor({
     onSaveStateChange?.(saveState);
   }, [saveState, onSaveStateChange]);
 
+  // 마운트 시점(예: 보기 모드 전환 후 재마운트)에는 열지 않고, 키가 실제로 바뀔 때만 메뉴를 연다.
+  const addMenuKeyRef = useRef(openAddMenuKey);
   useEffect(() => {
-    if (openAddMenuKey && openAddMenuKey > 0) setAddMenuOpen(true);
+    if (openAddMenuKey !== addMenuKeyRef.current && openAddMenuKey && openAddMenuKey > 0) {
+      setAddMenuOpen(true);
+    }
+    addMenuKeyRef.current = openAddMenuKey;
   }, [openAddMenuKey]);
 
   /** 블록 내용 변경: 로컬 즉시 반영 + 800ms 디바운스 autosave */
