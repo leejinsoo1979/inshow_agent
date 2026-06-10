@@ -399,7 +399,8 @@ export function AIChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // 한글 IME 조합 중(Enter로 글자 확정)이면 전송하지 않는다 — 마지막 글자 남는 버그 방지
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void handleSend(e);
               }
