@@ -72,14 +72,42 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     },
   });
 
+  // 문서 전체 블록을 불러와 선택 블록 + 형제 + 아웃라인 컨텍스트를 구성한다 (AIContext 강화).
+  const allBlocks = await prisma.documentBlock.findMany({
+    where: { documentId: input.documentId },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const blockSummary = (b: { type: string; content: unknown }): string => {
+    const c = (b.content ?? {}) as Record<string, unknown>;
+    const raw = (c.text ?? c.title ?? c.law ?? c.caption ?? c.expression ?? '') as unknown;
+    return String(typeof raw === 'string' ? raw : '').replace(/\s+/g, ' ').trim();
+  };
+
   const selectedBlockId = input.selectedBlockIds[0];
-  let selectedBlockText: string | undefined;
-  if (selectedBlockId) {
-    const block = await prisma.documentBlock.findFirst({
-      where: { id: selectedBlockId, documentId: input.documentId },
-    });
-    const content = block?.content as { text?: string } | undefined;
-    selectedBlockText = content?.text;
+  const selectedIdx = allBlocks.findIndex((b) => b.id === selectedBlockId);
+  const selectedBlockText =
+    selectedIdx >= 0 ? blockSummary(allBlocks[selectedIdx]!) || undefined : undefined;
+
+  // 문서 아웃라인: 블록 순서 + 타입 + 요약 (선택 블록 표시)
+  const documentOutline =
+    allBlocks.length > 0
+      ? allBlocks
+          .map((b, i) => {
+            const mark = i === selectedIdx ? '  ← 선택됨' : '';
+            return `${i + 1}. [${b.type}] ${blockSummary(b).slice(0, 40)}${mark}`;
+          })
+          .join('\n')
+      : undefined;
+
+  // 선택 블록 주변 형제 블록 내용
+  let siblingText: string | undefined;
+  if (selectedIdx >= 0) {
+    const parts: string[] = [];
+    const prev = allBlocks[selectedIdx - 1];
+    const next = allBlocks[selectedIdx + 1];
+    if (prev) parts.push(`이전 블록[${prev.type}]: ${blockSummary(prev).slice(0, 80)}`);
+    if (next) parts.push(`다음 블록[${next.type}]: ${blockSummary(next).slice(0, 80)}`);
+    siblingText = parts.length > 0 ? parts.join('\n') : undefined;
   }
 
   // 역할별 에이전트 라우팅 (콘텐츠/법규/시공/이미지/지식/PM)
@@ -118,6 +146,8 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
         documentTitle: document.title,
         selectedBlockId,
         selectedBlockText,
+        siblingText,
+        documentOutline,
         role: agentRole,
       });
       // 실제 LLM이 등록됐으면 결과를 그대로 쓴다. 실패해도 mock 문구로 숨기지 않고
@@ -292,6 +322,8 @@ async function planWithLlm(
     documentTitle?: string;
     selectedBlockId?: string;
     selectedBlockText?: string;
+    siblingText?: string;
+    documentOutline?: string;
     role?: AgentRole;
   },
 ): Promise<PlanResult> {
@@ -325,7 +357,10 @@ async function planWithLlm(
 
   const prompt = [
     `문서 제목: ${args.documentTitle ?? '(없음)'}`,
+    args.documentOutline ? `문서 구조(아웃라인):\n${args.documentOutline}` : '',
     args.selectedBlockText ? `선택된 블록 내용: ${args.selectedBlockText}` : '',
+    args.siblingText ? `선택 블록 주변 맥락:\n${args.siblingText}` : '',
+    '위 문서 구조와 맥락에 어울리도록, 중복되지 않게 작성해라.',
     `사용자 요청: ${args.message}`,
   ]
     .filter(Boolean)
