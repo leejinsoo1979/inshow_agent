@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { prisma, type Prisma } from '@archi/db';
 import { chunkText, cosineSimilarity, MockEmbeddingProvider } from '@archi/knowledge';
+import { sanitizeUntrustedText } from '@archi/security';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireWorkspaceCapability } from '../authz';
@@ -227,9 +228,11 @@ export async function queryKnowledgeBase(userId: string, input: z.infer<typeof k
     };
   }
 
+  // 업로드 문서 본문은 신뢰할 수 없는 입력 — 응답 조립 전 injection 필터 적용
   const top = scored[0]!;
-  const answer = `지식베이스 기준으로 가장 관련성 높은 내용입니다:\n\n${top.chunk.text.slice(0, 400)}${
-    top.chunk.text.length > 400 ? '…' : ''
+  const topText = sanitizeUntrustedText(top.chunk.text);
+  const answer = `지식베이스 기준으로 가장 관련성 높은 내용입니다:\n\n${topText.slice(0, 400)}${
+    topText.length > 400 ? '…' : ''
   }`;
 
   return {
@@ -237,9 +240,9 @@ export async function queryKnowledgeBase(userId: string, input: z.infer<typeof k
     citations: scored.map((s) => ({
       sourceId: s.chunk.source.id,
       chunkId: s.chunk.id,
-      title: s.chunk.source.title,
+      title: sanitizeUntrustedText(s.chunk.source.title),
       section: s.chunk.section,
-      quote: s.chunk.text.slice(0, 200),
+      quote: sanitizeUntrustedText(s.chunk.text).slice(0, 200),
       score: Number(s.score.toFixed(4)),
     })),
   };

@@ -8,6 +8,7 @@
     "@archi/editor": "*",
     "@archi/shared": "*",
     "@pdf-lib/fontkit": "^1.1.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "@archi/security": "*"
   }
 }

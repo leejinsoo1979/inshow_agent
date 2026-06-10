@@ -5,6 +5,18 @@ import { AppError, ErrorCodes } from '@archi/shared';
 
 export const SESSION_COOKIE = 'archi_session';
 
+/**
+ * dev-login은 개발 편의 기능이다.
+ * 프로덕션에서는 ALLOW_DEV_LOGIN=true를 명시하지 않는 한 비활성화한다.
+ */
+export function isDevLoginAllowed(env: {
+  NODE_ENV?: string;
+  ALLOW_DEV_LOGIN?: string;
+}): boolean {
+  if (env.NODE_ENV !== 'production') return true;
+  return env.ALLOW_DEV_LOGIN === 'true';
+}
+
 function secret(): string {
   return process.env.AUTH_SECRET ?? 'dev-secret-change-me';
 }

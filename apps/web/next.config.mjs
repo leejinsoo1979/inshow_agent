@@ -9,6 +9,7 @@ const nextConfig = {
     '@archi/image',
     '@archi/knowledge',
     '@archi/ontology',
+    '@archi/security',
   ],
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client'],

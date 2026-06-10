@@ -39,13 +39,27 @@ npm run dev
 ## 구조
 
 ```
-apps/web          Next.js 웹앱 (UI + API Route Handlers)
-packages/db       Prisma schema, migrations, db client
-packages/shared   공용 타입, zod 스키마, 에러/권한 모델
-packages/ai       LLM provider adapter, agent action
-packages/editor   블록 스키마와 에디터 유틸
-packages/export   TXT/Markdown/PDF exporter
+apps/web            Next.js 웹앱 (UI + API Route Handlers)
+packages/db         Prisma schema, migrations, db client
+packages/shared     공용 타입, 에러/권한(role-capability) 모델
+packages/ai         LLM/Search provider adapter, agent action, intent/mention 파서
+packages/editor     블록 zod 스키마
+packages/export     TXT/Markdown/PDF exporter (한글 폰트 내장)
+packages/image      이미지 생성/인페인트 provider adapter
+packages/knowledge  청킹, embedding adapter, 코사인 검색
+packages/ontology   그래프 레이아웃 헬퍼
+packages/security   prompt injection 필터, URL sanitize
 ```
+
+## 주요 화면
+
+- `/studio` — 로그인(개발용), 프로젝트/문서 관리
+- `/studio/[documentId]` — AI 에이전트 채팅 + 블록 에디터 + 내보내기
+- `/studio/knowledge` — 지식베이스 업로드/승인/질의
+- `/studio/ontology` — 온톨로지 브레인맵 (후보 승인)
+- `/studio/messenger` — 메신저 + Task Center (@에이전트 멘션으로 업무 생성)
+
+보안 점검 결과는 [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) 참조.
 
 ## 명령어
 

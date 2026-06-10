@@ -7,6 +7,7 @@ import {
   type AgentActionInput,
   type SearchResult,
 } from '@archi/ai';
+import { sanitizeUntrustedText } from '@archi/security';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireDocumentCapability } from '../authz';
@@ -75,7 +76,13 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
   let searchResults: SearchResult[] | undefined;
   if (requiresCitation(input.message)) {
     const provider = new MockSearchProvider();
-    searchResults = await provider.search(input.message, { limit: 5 });
+    const raw = await provider.search(input.message, { limit: 5 });
+    // 외부 검색 결과는 신뢰할 수 없는 입력 — LLM 컨텍스트 투입 전 injection 필터 적용
+    searchResults = raw.map((r) => ({
+      ...r,
+      title: sanitizeUntrustedText(r.title),
+      snippet: sanitizeUntrustedText(r.snippet),
+    }));
   }
 
   const plan = planAgentResponse({

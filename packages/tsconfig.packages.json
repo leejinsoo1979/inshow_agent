@@ -11,6 +11,7 @@
     "export/src/**/*.ts",
     "image/src/**/*.ts",
     "knowledge/src/**/*.ts",
-    "ontology/src/**/*.ts"
+    "ontology/src/**/*.ts",
+    "security/src/**/*.ts"
   ]
 }

@@ -1,3 +1,4 @@
+import { safeUrlOrEmpty } from '@archi/security';
 import {
   checklistItems,
   collectSources,
@@ -26,7 +27,7 @@ export class MarkdownExporter implements Exporter {
           lines.push(String(c.text ?? ''), '');
           break;
         case 'image':
-          lines.push(`![${c.caption ?? '이미지'}](${c.url ?? ''})`, '');
+          lines.push(`![${c.caption ?? '이미지'}](${safeUrlOrEmpty(String(c.url ?? ''))})`, '');
           if (c.caption) lines.push(`*${c.caption}*`, '');
           break;
         case 'checklist': {
@@ -40,7 +41,8 @@ export class MarkdownExporter implements Exporter {
         case 'source_reference':
           break;
         case 'cta': {
-          const label = c.buttonLabel ? `**[${c.buttonLabel}](${c.url ?? '#'})**` : '';
+          const ctaUrl = safeUrlOrEmpty(String(c.url ?? '')) || '#';
+          const label = c.buttonLabel ? `**[${c.buttonLabel}](${ctaUrl})**` : '';
           lines.push(`> ${c.text ?? ''}`, '>', `> ${label}`.trimEnd(), '');
           break;
         }

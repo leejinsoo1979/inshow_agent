@@ -14,9 +14,12 @@ export const GET = apiHandler(async (request) => {
   return NextResponse.json({ sources });
 });
 
+import { checkRateLimit } from '@/lib/rate-limit';
+
 /** multipart/form-data: file, workspaceId, title? */
 export const POST = apiHandler(async (request) => {
   const user = await requireUser();
+  checkRateLimit(`kb-upload:${user.id}`, 10, 60_000);
   let form: FormData;
   try {
     form = await request.formData();
