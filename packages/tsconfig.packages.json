@@ -9,6 +9,7 @@
     "ai/src/**/*.ts",
     "editor/src/**/*.ts",
     "export/src/**/*.ts",
-    "image/src/**/*.ts"
+    "image/src/**/*.ts",
+    "knowledge/src/**/*.ts"
   ]
 }

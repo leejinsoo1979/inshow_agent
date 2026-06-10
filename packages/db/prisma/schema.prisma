@@ -54,6 +54,7 @@ model Workspace {
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id])
   projects       Project[]
+  knowledgeSources KnowledgeSource[]
 }
 
 model Project {
@@ -178,6 +179,66 @@ enum AgentActionStatus {
   EXECUTED
   REJECTED
   FAILED
+}
+
+model KnowledgeSource {
+  id          String              @id @default(cuid())
+  workspaceId String
+  title       String
+  sourceType  KnowledgeSourceType @default(FILE)
+  uri         String?
+  fileKey     String?
+  status      KnowledgeStatus     @default(PENDING_PROCESSING)
+  trustLevel  TrustLevel          @default(INTERNAL_UNVERIFIED)
+  error       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id])
+  chunks      KnowledgeChunk[]
+
+  @@index([workspaceId, status, sourceType])
+}
+
+enum KnowledgeSourceType {
+  FILE
+  URL
+  OFFICIAL_LAW
+  KCSC
+  MANUFACTURER
+  INTERNAL_MANUAL
+  WEB
+}
+
+enum KnowledgeStatus {
+  PENDING_PROCESSING
+  PROCESSING
+  PENDING_REVIEW
+  APPROVED
+  ARCHIVED
+  FAILED
+}
+
+enum TrustLevel {
+  OFFICIAL
+  MANUFACTURER
+  INTERNAL_APPROVED
+  INTERNAL_UNVERIFIED
+  WEB_UNVERIFIED
+}
+
+model KnowledgeChunk {
+  id         String          @id @default(cuid())
+  sourceId   String
+  text       String
+  chunkIndex Int
+  page       Int?
+  section    String?
+  tokenCount Int?
+  embedding  Json?
+  metadata   Json?
+  source     KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, chunkIndex])
 }
 
 model ImageAsset {

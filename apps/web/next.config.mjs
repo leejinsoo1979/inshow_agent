@@ -7,6 +7,7 @@ const nextConfig = {
     '@archi/editor',
     '@archi/export',
     '@archi/image',
+    '@archi/knowledge',
   ],
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client'],
