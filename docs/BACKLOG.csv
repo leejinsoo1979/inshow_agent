@@ -1,0 +1,43 @@
+﻿Epic,Story ID,User Story,Priority,Acceptance Criteria,Dependencies
+Foundation,A-001,사용자로서 이메일 또는 소셜 계정으로 로그인하고 싶다,P0,로그인 후 workspace dashboard 접근 가능,Auth provider
+Foundation,A-002,사용자로서 워크스페이스를 만들고 팀 작업을 시작하고 싶다,P0,workspace 생성/조회/수정 가능,A-001
+Foundation,A-003,사용자로서 프로젝트를 만들고 현장별 문서를 관리하고 싶다,P0,project CRUD와 권한 검증,A-002
+Foundation,A-004,관리자로서 멤버 역할을 관리하고 싶다,P1,Owner/Admin/Editor/Viewer 권한 분리,A-002
+Editor,B-001,사용자로서 새 문서를 만들고 제목을 입력하고 싶다,P0,document 생성 후 editor 진입,A-003
+Editor,B-002,사용자로서 우측 + 버튼으로 본문 블록을 추가하고 싶다,P0,paragraph block 추가/저장,B-001
+Editor,B-003,"사용자로서 제목, 체크리스트, CTA 블록을 추가하고 싶다",P0,heading/checklist/cta block 지원,B-002
+Editor,B-004,사용자로서 이미지 블록을 삽입하고 캡션을 달고 싶다,P0,image block과 caption 저장,B-002
+Editor,B-005,사용자로서 블록 순서를 바꾸고 싶다,P0,reorder 후 새로고침 유지,B-002
+Editor,B-006,사용자로서 특정 블록을 선택하고 AI에게 수정 지시하고 싶다,P0,selectedBlockIds가 AI panel에 전달,B-002
+Agent,C-001,사용자로서 좌측 채팅창에서 AI와 대화하고 싶다,P0,chat session과 messages 저장,B-001
+Agent,C-002,사용자로서 AI가 작성한 글을 우측 문서에 삽입하고 싶다,P0,insert_blocks action 실행,C-001
+Agent,C-003,사용자로서 선택한 문단만 AI로 고치고 싶다,P0,update_block action 실행,"B-006,C-001"
+Agent,C-004,사용자로서 AI 액션을 실행 전 확인하고 싶다,P0,action preview/approve/reject,C-002
+Export,D-001,사용자로서 작성 글을 TXT로 다운로드하고 싶다,P0,TXT 파일 생성 및 다운로드,B-001
+Export,D-002,사용자로서 작성 글을 Markdown으로 다운로드하고 싶다,P0,Markdown 변환 규칙 적용,B-001
+Export,D-003,사용자로서 작성 글을 PDF로 다운로드하고 싶다,P0,PDF 생성 및 이미지/캡션 포함,B-004
+Export,D-004,사용자로서 DOCX로 제안서를 받고 싶다,P1,DOCX 파일 생성,D-001
+Search,E-001,사용자로서 AI가 웹 검색 후 글을 작성하길 원한다,P0,검색 결과 기반 답변,C-001
+Search,E-002,사용자로서 출처 카드를 확인하고 싶다,P0,title/publisher/url/retrievedAt 표시,E-001
+Search,E-003,사용자로서 법규 답변에는 근거를 보고 싶다,P0,citation 없는 법규 답변 확답 금지,E-002
+Search,E-004,사용자로서 출처를 문서에 삽입하고 싶다,P1,source_reference block 생성,E-002
+Image,F-001,사용자로서 인테리어 컨셉 이미지를 생성하고 싶다,P0,prompt 기반 image asset 생성,C-001
+Image,F-002,사용자로서 생성 이미지를 문서에 바로 넣고 싶다,P0,image block 자동 삽입,"F-001,B-004"
+Image,F-003,사용자로서 이미지 일부를 선택해 수정하고 싶다,P1,mask 기반 inpaint 요청,F-001
+Image,F-004,사용자로서 원본과 수정본을 비교하고 싶다,P1,ImageVersion 전후 비교,F-003
+Knowledge,G-001,사용자로서 PDF/TXT/MD를 지식베이스에 업로드하고 싶다,P0,source upload와 처리 상태 표시,A-002
+Knowledge,G-002,시스템으로서 업로드 문서를 청크로 나누고 검색 가능하게 만들고 싶다,P0,chunks와 embeddings 생성,G-001
+Knowledge,G-003,사용자로서 내부 자료 기반으로 AI 답변을 받고 싶다,P0,KB query와 citations 반환,G-002
+Knowledge,G-004,관리자로서 지식 소스를 승인하고 싶다,P1,pending_review to approved,G-001
+Ontology,H-001,관리자로서 지식에서 추출된 개념 후보를 보고 싶다,P1,candidate nodes/edges 생성,G-002
+Ontology,H-002,사용자로서 AI의 뇌구조를 그래프로 보고 싶다,P1,graph viewer 표시,H-001
+Ontology,H-003,관리자로서 노드와 관계를 편집하고 싶다,P1,node/edge edit/approve,H-002
+Messenger,I-001,사용자로서 전용 메신저에서 에이전트와 대화하고 싶다,P1,channel/message UI,A-002
+Messenger,I-002,사용자로서 @에이전트에게 업무를 지시하고 싶다,P1,mention parser와 task 생성,I-001
+Messenger,I-003,사용자로서 업무 상태를 확인하고 싶다,P1,Task status와 events 표시,I-002
+Messenger,I-004,사용자로서 완료 산출물을 웹 문서로 열고 싶다,P1,task output document link,I-003
+Security,J-001,관리자로서 민감 작업 기록을 보고 싶다,P1,AuditLog UI,A-004
+Security,J-002,시스템으로서 prompt injection을 방어하고 싶다,P0,untrusted source filtering test,"E-001,G-001"
+Security,J-003,시스템으로서 이미지/AI 사용량을 제한하고 싶다,P1,quota/rate limit,"F-001,C-001"
+Billing,K-001,운영자로서 조직별 사용량을 보고 싶다,P2,usage dashboard,"C-001,F-001"
+Billing,K-002,운영자로서 요금제별 기능 제한을 적용하고 싶다,P2,plan limits enforced,K-001
