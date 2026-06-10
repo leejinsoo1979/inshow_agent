@@ -1,39 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { computeRadialLayout } from '@archi/ontology';
+import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/client/api';
 import { NavRail } from '@/components/studio/NavRail';
+import { GraphView, type GraphEdgeData, type GraphNodeData } from '@/components/ontology/GraphView';
 
 type Me = { organizations: { workspaces: { id: string; name: string }[] }[] };
 
-type GraphNode = {
-  id: string;
-  label: string;
-  type: string;
+type GraphNode = GraphNodeData & {
   description: string | null;
-  status: string;
   confidence: number | null;
-};
-
-type GraphEdge = {
-  id: string;
-  sourceNodeId: string;
-  targetNodeId: string;
-  relationType: string;
-  status: string;
-};
-
-const VIEW_W = 860;
-const VIEW_H = 560;
-
-const TYPE_COLORS: Record<string, string> = {
-  space: '#18181b',
-  method: '#3f3f46',
-  material: '#52525b',
-  defect: '#71717a',
-  regulation: '#a1a1aa',
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -44,14 +20,26 @@ const TYPE_LABELS: Record<string, string> = {
   regulation: '법규',
 };
 
+/**
+ * 온톨로지 그래프 — 옵시디언 그래프 뷰 스타일.
+ * 풀스크린 다크 캔버스 + 우측 플로팅 설정 패널(필터/표시/힘) + 노드 상세 플로팅 카드.
+ */
 export default function OntologyPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
-  const [edges, setEdges] = useState<GraphEdge[]>([]);
+  const [edges, setEdges] = useState<GraphEdgeData[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'candidate'>('all');
-  const [selected, setSelected] = useState<GraphNode | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(true);
+
+  // 옵시디언 '그래프 설정' 상태
+  const [search, setSearch] = useState('');
+  const [showLabels, setShowLabels] = useState(true);
+  const [centerForce, setCenterForce] = useState(0.015);
+  const [repelForce, setRepelForce] = useState(5200);
+  const [linkDistance, setLinkDistance] = useState(110);
 
   useEffect(() => {
     apiFetch<Me>('/api/auth/me')
@@ -59,29 +47,21 @@ export default function OntologyPage() {
       .catch(() => setError('로그인이 필요합니다. 스튜디오에서 먼저 로그인해 주세요.'));
   }, []);
 
-  const loadGraph = useCallback(
-    (wsId: string, filter: string) => {
-      apiFetch<{ nodes: GraphNode[]; edges: GraphEdge[] }>(
-        `/api/ontology/graph?workspaceId=${wsId}&status=${filter}`,
-      )
-        .then((graph) => {
-          setNodes(graph.nodes);
-          setEdges(graph.edges);
-          setSelected((prev) => graph.nodes.find((n) => n.id === prev?.id) ?? null);
-        })
-        .catch((e: Error) => setError(e.message));
-    },
-    [],
-  );
+  const loadGraph = useCallback((wsId: string, filter: string) => {
+    apiFetch<{ nodes: GraphNode[]; edges: GraphEdgeData[] }>(
+      `/api/ontology/graph?workspaceId=${wsId}&status=${filter}`,
+    )
+      .then((graph) => {
+        setNodes(graph.nodes);
+        setEdges(graph.edges);
+        setSelectedId((prev) => (graph.nodes.some((n) => n.id === prev) ? prev : null));
+      })
+      .catch((e: Error) => setError(e.message));
+  }, []);
 
   useEffect(() => {
     if (workspaceId) loadGraph(workspaceId, statusFilter);
   }, [workspaceId, statusFilter, loadGraph]);
-
-  const positions = useMemo(
-    () => computeRadialLayout(nodes, { width: VIEW_W, height: VIEW_H }),
-    [nodes],
-  );
 
   async function handleSeed() {
     if (!workspaceId || busy) return;
@@ -103,7 +83,6 @@ export default function OntologyPage() {
   async function handleApprove(nodeId: string) {
     if (busy || !workspaceId) return;
     setBusy(true);
-    setError(null);
     try {
       await apiFetch(`/api/ontology/nodes/${nodeId}`, {
         method: 'PATCH',
@@ -117,211 +96,231 @@ export default function OntologyPage() {
     }
   }
 
+  const selected = nodes.find((n) => n.id === selectedId) ?? null;
+  const selectedConnections = selected
+    ? edges.filter((e) => e.sourceNodeId === selected.id || e.targetNodeId === selected.id)
+    : [];
+
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#111114]">
       <NavRail />
-      <main className="flex-1 overflow-y-auto bg-zinc-50 p-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-bold">온톨로지 브레인맵</h1>
-            <Link href="/studio" className="text-sm text-zinc-500 hover:text-zinc-900">
-              ← 스튜디오
-            </Link>
-          </div>
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
-          <div className="mb-4 flex items-center gap-2">
-            {(['all', 'approved', 'candidate'] as const).map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setStatusFilter(filter)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  statusFilter === filter
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-white text-zinc-600 hover:bg-zinc-100'
-                }`}
-              >
-                {filter === 'all' ? '전체' : filter === 'approved' ? '승인됨' : '후보'}
-              </button>
-            ))}
-            <span className="ml-auto flex gap-3 text-xs text-zinc-500">
-              {Object.entries(TYPE_LABELS).map(([type, label]) => (
-                <span key={type} className="flex items-center gap-1">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: TYPE_COLORS[type] }}
-                  />
-                  {label}
-                </span>
-              ))}
-            </span>
+      <main className="relative min-w-0 flex-1">
+        {/* 그래프 캔버스 (풀스크린) */}
+        {nodes.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-500">
+            <p className="text-sm">아직 지식 그래프가 비어 있습니다.</p>
+            <p className="text-xs text-zinc-600">
+              문서에서 ‘지식 추출’을 실행하거나 샘플을 생성해 보세요.
+            </p>
+            <button
+              onClick={handleSeed}
+              disabled={busy}
+              className="mt-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-900 disabled:opacity-50"
+            >
+              샘플 온톨로지 생성
+            </button>
+            {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
+        ) : (
+          <GraphView
+            nodes={nodes}
+            edges={edges}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            search={search}
+            showLabels={showLabels}
+            params={{
+              centerStrength: centerForce,
+              repulsion: repelForce,
+              springLength: linkDistance,
+            }}
+          />
+        )}
 
-          <div className="flex gap-4">
-            <div className="flex-1 rounded-xl border border-zinc-200 bg-white">
-              {nodes.length === 0 ? (
-                <div className="flex h-[560px] flex-col items-center justify-center gap-3 text-zinc-400">
-                  <p className="text-sm">온톨로지 노드가 없습니다.</p>
-                  <button
-                    onClick={handleSeed}
-                    disabled={busy}
-                    className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    샘플 온톨로지 생성
-                  </button>
-                </div>
-              ) : (
-                <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="h-auto w-full">
-                  {edges.map((edge) => {
-                    const from = positions.get(edge.sourceNodeId);
-                    const to = positions.get(edge.targetNodeId);
-                    if (!from || !to) return null;
-                    const mx = (from.x + to.x) / 2;
-                    const my = (from.y + to.y) / 2;
-                    return (
-                      <g key={edge.id}>
-                        <line
-                          x1={from.x}
-                          y1={from.y}
-                          x2={to.x}
-                          y2={to.y}
-                          stroke={edge.status === 'APPROVED' ? '#18181b' : '#d4d4d8'}
-                          strokeWidth={1.5}
-                          strokeDasharray={edge.status === 'APPROVED' ? undefined : '4 3'}
-                        />
-                        <text
-                          x={mx}
-                          y={my - 4}
-                          textAnchor="middle"
-                          className="fill-zinc-400"
-                          fontSize={10}
-                        >
-                          {edge.relationType}
-                        </text>
-                      </g>
-                    );
-                  })}
-                  {nodes.map((node) => {
-                    const pos = positions.get(node.id);
-                    if (!pos) return null;
-                    const color = TYPE_COLORS[node.type] ?? '#71717a';
-                    const isSelected = selected?.id === node.id;
-                    return (
-                      <g
-                        key={node.id}
-                        onClick={() => setSelected(node)}
-                        className="cursor-pointer"
-                      >
-                        <circle
-                          cx={pos.x}
-                          cy={pos.y}
-                          r={isSelected ? 26 : 22}
-                          fill={color}
-                          fillOpacity={node.status === 'APPROVED' ? 0.95 : 0.45}
-                          stroke={isSelected ? '#18181b' : color}
-                          strokeWidth={isSelected ? 2.5 : 1}
-                          strokeDasharray={node.status === 'APPROVED' ? undefined : '4 3'}
-                        />
-                        <text
-                          x={pos.x}
-                          y={pos.y + 4}
-                          textAnchor="middle"
-                          fontSize={11}
-                          fontWeight={600}
-                          className="fill-white"
-                        >
-                          {node.label.slice(0, 5)}
-                        </text>
-                        <text
-                          x={pos.x}
-                          y={pos.y + 38}
-                          textAnchor="middle"
-                          fontSize={10}
-                          className="fill-zinc-500"
-                        >
-                          {node.label}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              )}
-            </div>
-
-            <aside className="w-72 shrink-0 rounded-xl border border-zinc-200 bg-white p-4">
-              {selected ? (
-                <>
-                  <div className="mb-2 flex items-center gap-2">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{ background: TYPE_COLORS[selected.type] ?? '#71717a' }}
-                    />
-                    <h2 className="text-lg font-bold">{selected.label}</h2>
-                  </div>
-                  <dl className="space-y-2 text-sm">
-                    <div>
-                      <dt className="text-xs text-zinc-400">유형</dt>
-                      <dd>{TYPE_LABELS[selected.type] ?? selected.type}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-zinc-400">상태</dt>
-                      <dd>
-                        {selected.status === 'APPROVED' ? (
-                          <span className="text-zinc-900 font-semibold">승인됨</span>
-                        ) : (
-                          <span className="text-zinc-500">후보</span>
-                        )}
-                        {selected.confidence != null && (
-                          <span className="ml-2 text-xs text-zinc-400">
-                            신뢰도 {(selected.confidence * 100).toFixed(0)}%
-                          </span>
-                        )}
-                      </dd>
-                    </div>
-                    {selected.description && (
-                      <div>
-                        <dt className="text-xs text-zinc-400">설명</dt>
-                        <dd className="leading-5 text-zinc-600">{selected.description}</dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt className="text-xs text-zinc-400">연결</dt>
-                      <dd className="text-zinc-600">
-                        {edges
-                          .filter(
-                            (e) =>
-                              e.sourceNodeId === selected.id || e.targetNodeId === selected.id,
-                          )
-                          .map((e) => {
-                            const otherId =
-                              e.sourceNodeId === selected.id ? e.targetNodeId : e.sourceNodeId;
-                            const other = nodes.find((n) => n.id === otherId);
-                            return (
-                              <span key={e.id} className="mr-1 inline-block text-xs">
-                                {e.relationType}→{other?.label ?? '?'}
-                              </span>
-                            );
-                          })}
-                      </dd>
-                    </div>
-                  </dl>
-                  {selected.status === 'CANDIDATE' && (
-                    <button
-                      onClick={() => handleApprove(selected.id)}
-                      disabled={busy}
-                      className="mt-4 w-full rounded-lg bg-zinc-900 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                    >
-                      승인 (관리자)
-                    </button>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-zinc-400">노드를 클릭하면 상세 정보가 표시됩니다.</p>
-              )}
-            </aside>
-          </div>
+        {/* 좌상단: 타이틀/통계 */}
+        <div className="pointer-events-none absolute left-4 top-4 text-zinc-400">
+          <h1 className="text-sm font-bold text-zinc-100">온톨로지 그래프</h1>
+          <p className="text-[11px]">
+            노드 {nodes.length} · 관계 {edges.length}
+          </p>
+          {error && nodes.length > 0 && <p className="text-[11px] text-red-400">{error}</p>}
         </div>
+
+        {/* 우상단: 그래프 설정 패널 (옵시디언 스타일) */}
+        <div className="absolute right-4 top-4 w-60">
+          <button
+            onClick={() => setSettingsOpen((v) => !v)}
+            className="mb-1 ml-auto block rounded-md bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-zinc-300 hover:bg-white/20"
+          >
+            그래프 설정 {settingsOpen ? '▾' : '▸'}
+          </button>
+          {settingsOpen && (
+            <div className="space-y-4 rounded-xl border border-white/10 bg-[#1c1c24]/95 p-4 text-zinc-300 shadow-2xl backdrop-blur">
+              <section>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  필터
+                </p>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="노드 검색..."
+                  className="mb-2 w-full rounded-md bg-white/5 px-2.5 py-1.5 text-xs outline-none placeholder:text-zinc-600"
+                />
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ['all', '전체'],
+                      ['approved', '승인'],
+                      ['candidate', '후보'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setStatusFilter(value)}
+                      className={`flex-1 rounded-md py-1 text-[11px] font-semibold ${
+                        statusFilter === value
+                          ? 'bg-white text-zinc-900'
+                          : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  표시
+                </p>
+                <label className="flex items-center justify-between text-xs">
+                  텍스트 라벨
+                  <input
+                    type="checkbox"
+                    checked={showLabels}
+                    onChange={(e) => setShowLabels(e.target.checked)}
+                  />
+                </label>
+              </section>
+
+              <section className="space-y-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">힘</p>
+                <Slider
+                  label="중심 힘"
+                  min={0}
+                  max={0.06}
+                  step={0.003}
+                  value={centerForce}
+                  onChange={setCenterForce}
+                />
+                <Slider
+                  label="반발력"
+                  min={500}
+                  max={15000}
+                  step={500}
+                  value={repelForce}
+                  onChange={setRepelForce}
+                />
+                <Slider
+                  label="링크 거리"
+                  min={40}
+                  max={300}
+                  step={10}
+                  value={linkDistance}
+                  onChange={setLinkDistance}
+                />
+              </section>
+            </div>
+          )}
+        </div>
+
+        {/* 우하단: 선택 노드 상세 */}
+        {selected && (
+          <div className="absolute bottom-4 right-4 w-64 rounded-xl border border-white/10 bg-[#1c1c24]/95 p-4 text-zinc-200 shadow-2xl backdrop-blur">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-white">{selected.label}</h2>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-400">
+                {TYPE_LABELS[selected.type] ?? selected.type}
+              </span>
+            </div>
+            <p className="mb-1 text-[11px]">
+              {selected.status === 'APPROVED' ? (
+                <span className="font-semibold text-white">승인됨</span>
+              ) : (
+                <span className="text-zinc-400">후보</span>
+              )}
+              {selected.confidence != null && (
+                <span className="ml-2 text-zinc-500">
+                  신뢰도 {(selected.confidence * 100).toFixed(0)}%
+                </span>
+              )}
+              <span className="ml-2 text-zinc-500">연결 {selectedConnections.length}</span>
+            </p>
+            {selected.description && (
+              <p className="mb-2 text-[11px] leading-4 text-zinc-400">{selected.description}</p>
+            )}
+            <div className="mb-2 flex flex-wrap gap-1">
+              {selectedConnections.slice(0, 6).map((edge) => {
+                const otherId =
+                  edge.sourceNodeId === selected.id ? edge.targetNodeId : edge.sourceNodeId;
+                const other = nodes.find((n) => n.id === otherId);
+                return (
+                  <button
+                    key={edge.id}
+                    onClick={() => setSelectedId(otherId)}
+                    className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
+                  >
+                    {edge.relationType} → {other?.label ?? '?'}
+                  </button>
+                );
+              })}
+            </div>
+            {selected.status === 'CANDIDATE' && (
+              <button
+                onClick={() => handleApprove(selected.id)}
+                disabled={busy}
+                className="w-full rounded-lg bg-white py-1.5 text-xs font-bold text-zinc-900 disabled:opacity-50"
+              >
+                승인 (관리자)
+              </button>
+            )}
+          </div>
+        )}
       </main>
     </div>
+  );
+}
+
+function Slider({
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="block text-xs">
+      <span className="mb-1 flex justify-between text-zinc-400">
+        {label}
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-white"
+      />
+    </label>
   );
 }
