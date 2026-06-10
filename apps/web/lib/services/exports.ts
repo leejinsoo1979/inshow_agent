@@ -8,13 +8,18 @@ import { loadKoreanFontBytes, saveStorageFile } from '../storage';
 
 export const createExportSchema = z.object({
   documentId: z.string().min(1),
-  format: z.enum(['txt', 'markdown', 'pdf']),
+  format: z.enum(['txt', 'markdown', 'pdf', 'docx', 'html']),
 });
 
-const FORMAT_TO_DB: Record<'txt' | 'markdown' | 'pdf', 'TXT' | 'MARKDOWN' | 'PDF'> = {
+const FORMAT_TO_DB: Record<
+  'txt' | 'markdown' | 'pdf' | 'docx' | 'html',
+  'TXT' | 'MARKDOWN' | 'PDF' | 'DOCX' | 'HTML'
+> = {
   txt: 'TXT',
   markdown: 'MARKDOWN',
   pdf: 'PDF',
+  docx: 'DOCX',
+  html: 'HTML',
 };
 
 /**

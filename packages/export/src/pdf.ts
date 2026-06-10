@@ -5,7 +5,11 @@ import {
   chartData,
   checklistItems,
   collectSources,
+  docMetaEntries,
+  formulaData,
+  qnaItems,
   safeFilename,
+  tableData,
   type DocumentForExport,
   type Exporter,
   type ExportOptions,
@@ -89,6 +93,61 @@ export class PdfExporter implements Exporter {
             gapAfter: 8,
           });
           break;
+        case 'table': {
+          const table = tableData(block.content);
+          if (!table) break;
+          if (table.title) writer.writeText(table.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          writer.writeText(table.headers.join('  |  '), { gapAfter: 2 });
+          for (const row of table.rows) {
+            writer.writeText(table.headers.map((_, i) => row[i] ?? '').join('  |  '), {
+              gapAfter: 2,
+              color: rgb(0.25, 0.25, 0.28),
+            });
+          }
+          writer.gap(6);
+          break;
+        }
+        case 'formula': {
+          const formula = formulaData(block.content);
+          if (!formula) break;
+          if (formula.title) {
+            writer.writeText(formula.title, { size: 12, gapBefore: 6, gapAfter: 4 });
+          }
+          writer.writeText(formula.expression, { gapAfter: 3 });
+          for (const v of formula.variables) {
+            writer.writeText(`· ${v.symbol}: ${v.meaning}${v.unit ? ` (${v.unit})` : ''}`, {
+              gapAfter: 2,
+              color: rgb(0.35, 0.35, 0.4),
+            });
+          }
+          if (formula.result) writer.writeText(`= ${formula.result}`, { gapAfter: 4 });
+          writer.gap(4);
+          break;
+        }
+        case 'doc_meta': {
+          const entries = docMetaEntries(block.content);
+          if (entries.length === 0) break;
+          writer.writeText(entries.map(([k, v]) => `${k}: ${v}`).join('  /  '), {
+            gapAfter: 8,
+            color: rgb(0.4, 0.4, 0.45),
+          });
+          break;
+        }
+        case 'qna': {
+          const items = qnaItems(block.content);
+          if (typeof c.title === 'string' && c.title) {
+            writer.writeText(String(c.title), { size: 12, gapBefore: 6, gapAfter: 4 });
+          }
+          for (const item of items) {
+            writer.writeText(`Q. ${item.question}`, { gapAfter: 2 });
+            writer.writeText(`A. ${item.answer}`, { gapAfter: 2, color: rgb(0.3, 0.3, 0.35) });
+            if (item.basis) {
+              writer.writeText(`근거: ${item.basis}`, { gapAfter: 3, color: rgb(0.45, 0.45, 0.5) });
+            }
+          }
+          writer.gap(4);
+          break;
+        }
         default:
           break;
       }

@@ -23,7 +23,7 @@ type SourceCard = {
 
 type ChatItem =
   | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string; streaming?: boolean }
+  | { kind: 'assistant'; text: string; streaming?: boolean; agentLabel?: string }
   | { kind: 'sources'; sources: SourceCard[] }
   | { kind: 'actions'; actions: ActionPreview[] };
 
@@ -56,9 +56,9 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
   }, [items]);
 
   /** mock stream: 응답 텍스트를 타자기 효과로 표시 */
-  function streamAssistantText(text: string): Promise<void> {
+  function streamAssistantText(text: string, agentLabel?: string): Promise<void> {
     return new Promise((resolve) => {
-      setItems((prev) => [...prev, { kind: 'assistant', text: '', streaming: true }]);
+      setItems((prev) => [...prev, { kind: 'assistant', text: '', streaming: true, agentLabel }]);
       let i = 0;
       const timer = setInterval(() => {
         i += 3;
@@ -67,7 +67,12 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
           const next = [...prev];
           const last = next[next.length - 1];
           if (last?.kind === 'assistant') {
-            next[next.length - 1] = { kind: 'assistant', text: slice, streaming: i < text.length };
+            next[next.length - 1] = {
+              kind: 'assistant',
+              text: slice,
+              streaming: i < text.length,
+              agentLabel,
+            };
           }
           return next;
         });
@@ -91,6 +96,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
       const result = await apiFetch<{
         chatSessionId: string;
         reply: { text: string };
+        agentRole?: { key: string; label: string };
         sources: SourceCard[];
         actions: ActionPreview[];
       }>('/api/ai/chat', {
@@ -103,7 +109,7 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
         }),
       });
       setSessionId(result.chatSessionId);
-      await streamAssistantText(result.reply.text);
+      await streamAssistantText(result.reply.text, result.agentRole?.label);
       if (result.sources.length > 0) {
         setItems((prev) => [...prev, { kind: 'sources', sources: result.sources }]);
       }
@@ -167,8 +173,15 @@ export function AIChatPanel({ documentId, selectedBlockId, onDocumentChanged }: 
           if (item.kind === 'assistant') {
             return (
               <div key={i} className="mr-6 rounded-2xl rounded-tl-sm bg-white/5 px-3.5 py-2.5 text-sm leading-6">
-                {item.text}
-                {item.streaming && <span className="animate-pulse">▍</span>}
+                {item.agentLabel && (
+                  <span className="mb-1 inline-block rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-300">
+                    {item.agentLabel}
+                  </span>
+                )}
+                <div>
+                  {item.text}
+                  {item.streaming && <span className="animate-pulse">▍</span>}
+                </div>
               </div>
             );
           }

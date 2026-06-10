@@ -2,11 +2,15 @@ export * from './types';
 export * from './txt';
 export * from './markdown';
 export * from './pdf';
+export * from './docx';
+export * from './html';
 
 import type { Exporter, ExportFormat } from './types';
 import { TxtExporter } from './txt';
 import { MarkdownExporter } from './markdown';
 import { PdfExporter } from './pdf';
+import { DocxExporter } from './docx';
+import { HtmlExporter } from './html';
 
 export function getExporter(format: ExportFormat): Exporter {
   switch (format) {
@@ -16,5 +20,9 @@ export function getExporter(format: ExportFormat): Exporter {
       return new MarkdownExporter();
     case 'pdf':
       return new PdfExporter();
+    case 'docx':
+      return new DocxExporter();
+    case 'html':
+      return new HtmlExporter();
   }
 }

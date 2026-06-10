@@ -127,6 +127,15 @@ export async function processKnowledgeSource(userId: string, sourceId: string) {
       targetId: sourceId,
       after: { chunkCount: chunks.length, status: 'PENDING_REVIEW' },
     });
+
+    // 온톨로지 후보 자동 추출 (ARCHITECTURE.md 5.3 파이프라인). 실패해도 처리 자체는 성공으로 둔다.
+    try {
+      const { extractFromKnowledgeSource } = await import('./ontology');
+      await extractFromKnowledgeSource(userId, sourceId);
+    } catch (error) {
+      console.warn('[knowledge] 온톨로지 자동 추출 실패:', error);
+    }
+
     return { sourceId, chunkCount: chunks.length, status: 'PENDING_REVIEW' as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

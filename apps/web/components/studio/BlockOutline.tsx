@@ -12,6 +12,10 @@ const TYPE_LABELS: Record<string, string> = {
   source_reference: '출처',
   cta: 'CTA',
   chart: '차트',
+  table: '표',
+  formula: '계산식',
+  doc_meta: '문서정보',
+  qna: 'Q&A',
 };
 
 function blockSummary(block: EditorBlock): string {
@@ -27,17 +31,43 @@ type Props = {
 };
 
 const EXPORT_FORMATS = [
-  { format: 'txt', label: 'TXT' },
-  { format: 'markdown', label: 'Markdown' },
   { format: 'pdf', label: 'PDF' },
+  { format: 'docx', label: 'DOCX' },
+  { format: 'markdown', label: 'MD' },
+  { format: 'txt', label: 'TXT' },
+  { format: 'html', label: 'HTML' },
 ] as const;
 
 /** 우측 문서 블록 목록 + 내보내기 사이드바 */
 export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBlock }: Props) {
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractResult, setExtractResult] = useState<string | null>(null);
 
-  async function handleExport(format: 'txt' | 'markdown' | 'pdf') {
+  async function handleExtract() {
+    setExtracting(true);
+    setExtractResult(null);
+    try {
+      const stats = await apiFetch<{
+        nodesCreated: number;
+        nodesLinked: number;
+        edgesCreated: number;
+      }>('/api/ontology/extract', {
+        method: 'POST',
+        body: JSON.stringify({ documentId }),
+      });
+      setExtractResult(
+        `노드 ${stats.nodesCreated}개 생성, 기존 ${stats.nodesLinked}개 연결, 관계 ${stats.edgesCreated}개`,
+      );
+    } catch (e) {
+      setExtractResult((e as Error).message);
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleExport(format: 'txt' | 'markdown' | 'pdf' | 'docx' | 'html') {
     setExporting(format);
     setExportError(null);
     try {
@@ -60,7 +90,7 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
       </div>
       <div className="border-b border-zinc-200 p-3">
         <p className="mb-2 text-xs font-semibold text-zinc-500">내보내기</p>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {EXPORT_FORMATS.map(({ format, label }) => (
             <button
               key={format}
@@ -73,6 +103,17 @@ export function BlockOutline({ documentId, blocks, selectedBlockId, onSelectBloc
           ))}
         </div>
         {exportError && <p className="mt-2 text-xs text-red-600">{exportError}</p>}
+      </div>
+      <div className="border-b border-zinc-200 p-3">
+        <p className="mb-2 text-xs font-semibold text-zinc-500">온톨로지</p>
+        <button
+          onClick={handleExtract}
+          disabled={extracting || blocks.length === 0}
+          className="w-full rounded-md border border-zinc-900 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-900 hover:text-white disabled:opacity-40"
+        >
+          {extracting ? '추출 중...' : '이 문서에서 지식 추출'}
+        </button>
+        {extractResult && <p className="mt-2 text-xs text-zinc-500">{extractResult}</p>}
       </div>
       <div className="flex-1 overflow-y-auto p-2">
         {blocks.length === 0 ? (

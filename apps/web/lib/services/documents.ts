@@ -1,4 +1,5 @@
-import { prisma } from '@archi/db';
+import { prisma, type Prisma } from '@archi/db';
+import { getTemplateBlocks, type DocumentTypeKey } from '@archi/editor';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
 import { requireDocumentCapability, requireProjectCapability } from '../authz';
@@ -10,6 +11,8 @@ export const createDocumentSchema = z.object({
   type: z
     .enum(['BLOG_POST', 'PROPOSAL', 'REPORT', 'SNS_CAPTION', 'KNOWLEDGE_NOTE'])
     .default('BLOG_POST'),
+  /** true면 문서 유형에 맞는 블록 템플릿으로 초기 구조를 구성한다 */
+  withTemplate: z.boolean().default(false),
 });
 
 export const updateDocumentSchema = z.object({
@@ -17,11 +20,30 @@ export const updateDocumentSchema = z.object({
   status: z.enum(['DRAFT', 'NEEDS_REVIEW', 'APPROVED', 'ARCHIVED']).optional(),
 });
 
-export async function createDocument(userId: string, input: z.infer<typeof createDocumentSchema>) {
+export async function createDocument(
+  userId: string,
+  rawInput: z.input<typeof createDocumentSchema>,
+) {
+  const input = createDocumentSchema.parse(rawInput);
   await requireProjectCapability(userId, input.projectId, Capabilities.EDIT_DOCUMENTS);
+  const templateBlocks = input.withTemplate
+    ? getTemplateBlocks(input.type as DocumentTypeKey)
+    : [];
   const document = await prisma.document.create({
-    data: { projectId: input.projectId, title: input.title, type: input.type },
-    include: { blocks: true },
+    data: {
+      projectId: input.projectId,
+      title: input.title,
+      type: input.type,
+      blocks: {
+        create: templateBlocks.map((block, index) => ({
+          type: block.type,
+          sortOrder: index,
+          content: block.content as Prisma.InputJsonValue,
+          metadata: (block.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+        })),
+      },
+    },
+    include: { blocks: { orderBy: { sortOrder: 'asc' } } },
   });
   await writeAuditLog({
     actorId: userId,

@@ -13,6 +13,10 @@ export const BlockTypes = {
   SOURCE_REFERENCE: 'source_reference',
   CTA: 'cta',
   CHART: 'chart',
+  TABLE: 'table',
+  FORMULA: 'formula',
+  DOC_META: 'doc_meta',
+  QNA: 'qna',
 } as const;
 
 export type BlockType = (typeof BlockTypes)[keyof typeof BlockTypes];
@@ -72,6 +76,52 @@ export const chartContentSchema = z.object({
     .min(1, '데이터 시리즈가 최소 1개 필요합니다.'),
 });
 
+/** 기준표/비교표 블록 (제안서: 자재 비교표, 규격표, 공정표) */
+export const tableContentSchema = z.object({
+  title: z.string().optional(),
+  headers: z.array(z.string()).min(1, '표 헤더가 최소 1개 필요합니다.'),
+  rows: z.array(z.array(z.string())).min(1, '표 행이 최소 1개 필요합니다.'),
+});
+
+/** 계산식 블록 (제안서: 열관류율, TDR, 단가·물량 산식) */
+export const formulaContentSchema = z.object({
+  title: z.string().optional(),
+  expression: z.string().min(1, '계산식을 입력해 주세요.'),
+  variables: z
+    .array(
+      z.object({
+        symbol: z.string(),
+        meaning: z.string(),
+        unit: z.string().optional(),
+      }),
+    )
+    .default([]),
+  result: z.string().optional(),
+});
+
+/** 문서 메타 블록 (제안서: 문서코드, 버전, 발행일, 작성자, 검수 상태) */
+export const docMetaContentSchema = z.object({
+  docCode: z.string().optional(),
+  version: z.string().optional(),
+  author: z.string().optional(),
+  publishedAt: z.string().optional(),
+  reviewStatus: z.enum(['draft', 'review', 'approved']).default('draft'),
+});
+
+/** 현장 Q&A 블록 (제안서: 질문, 답변, 근거) */
+export const qnaContentSchema = z.object({
+  title: z.string().optional(),
+  items: z
+    .array(
+      z.object({
+        question: z.string(),
+        answer: z.string(),
+        basis: z.string().optional(),
+      }),
+    )
+    .min(1, 'Q&A 항목이 최소 1개 필요합니다.'),
+});
+
 export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   heading: headingContentSchema,
   paragraph: paragraphContentSchema,
@@ -80,6 +130,10 @@ export const blockContentSchemas: Record<BlockType, z.ZodTypeAny> = {
   source_reference: sourceReferenceContentSchema,
   cta: ctaContentSchema,
   chart: chartContentSchema,
+  table: tableContentSchema,
+  formula: formulaContentSchema,
+  doc_meta: docMetaContentSchema,
+  qna: qnaContentSchema,
 };
 
 export const blockTypeSchema = z.enum([
@@ -90,6 +144,10 @@ export const blockTypeSchema = z.enum([
   'source_reference',
   'cta',
   'chart',
+  'table',
+  'formula',
+  'doc_meta',
+  'qna',
 ]);
 
 export const blockInputSchema = z
@@ -120,6 +178,10 @@ export type ChecklistContent = z.infer<typeof checklistContentSchema>;
 export type SourceReferenceContent = z.infer<typeof sourceReferenceContentSchema>;
 export type CtaContent = z.infer<typeof ctaContentSchema>;
 export type ChartContent = z.infer<typeof chartContentSchema>;
+export type TableContent = z.infer<typeof tableContentSchema>;
+export type FormulaContent = z.infer<typeof formulaContentSchema>;
+export type DocMetaContent = z.infer<typeof docMetaContentSchema>;
+export type QnaContent = z.infer<typeof qnaContentSchema>;
 
 /** 검증된 블록 내용 파싱. 실패 시 한국어 메시지 에러를 던진다. */
 export function parseBlockContent(type: string, content: unknown) {

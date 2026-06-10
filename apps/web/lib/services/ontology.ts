@@ -1,7 +1,8 @@
 import { prisma, type Prisma } from '@archi/db';
+import { extractFromUnits } from '@archi/ontology';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
-import { requireWorkspaceCapability } from '../authz';
+import { requireDocumentCapability, requireWorkspaceCapability } from '../authz';
 import { writeAuditLog } from '../audit';
 
 export const createNodeSchema = z.object({
@@ -153,6 +154,154 @@ const SAMPLE_EDGES: { source: string; target: string; relation: string }[] = [
   { source: 'firedoor', target: 'fire_code', relation: '규제 근거' },
   { source: 'waterproof', target: 'condensation', relation: '관련 하자' },
 ];
+
+/** 블록 content에서 추출 대상 텍스트를 뽑아낸다 */
+function blockTextForExtraction(content: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const key of ['text', 'title', 'summary', 'caption', 'expression'] as const) {
+    if (typeof content[key] === 'string') parts.push(content[key] as string);
+  }
+  if (Array.isArray(content.items)) {
+    for (const item of content.items as Record<string, unknown>[]) {
+      for (const key of ['text', 'question', 'answer', 'basis'] as const) {
+        if (typeof item[key] === 'string') parts.push(item[key] as string);
+      }
+    }
+  }
+  return parts.join('\n');
+}
+
+type ExtractionStats = { nodesCreated: number; nodesLinked: number; edgesCreated: number };
+
+/**
+ * 추출 결과를 CANDIDATE 노드/엣지로 저장.
+ * - 같은 라벨의 기존 노드가 있으면 새로 만들지 않고 연결(provenance만 추가)
+ * - 모든 노드/엣지에 원본(documentId/blockId 또는 sourceId/chunkId)을 기록 (제안서: provenance)
+ */
+async function persistExtraction(
+  workspaceId: string,
+  units: { unitId: string; text: string }[],
+  origin: { documentId?: string; sourceId?: string },
+): Promise<ExtractionStats> {
+  const extractions = extractFromUnits(units);
+  const stats: ExtractionStats = { nodesCreated: 0, nodesLinked: 0, edgesCreated: 0 };
+  const nodeIdByLabel = new Map<string, string>();
+
+  const existing = await prisma.ontologyNode.findMany({
+    where: { workspaceId, status: { in: ['CANDIDATE', 'APPROVED'] } },
+    select: { id: true, label: true },
+  });
+  for (const node of existing) nodeIdByLabel.set(node.label, node.id);
+
+  for (const unit of extractions) {
+    const provenance = { ...origin, unitId: unit.unitId };
+
+    for (const entity of unit.entities) {
+      const existingId = nodeIdByLabel.get(entity.label);
+      if (existingId) {
+        // 기존 노드에 provenance 누적
+        const node = await prisma.ontologyNode.findUnique({ where: { id: existingId } });
+        const meta = (node?.metadata as { sources?: unknown[] } | null) ?? {};
+        const sources = Array.isArray(meta.sources) ? meta.sources : [];
+        await prisma.ontologyNode.update({
+          where: { id: existingId },
+          data: {
+            metadata: { ...meta, sources: [...sources, provenance].slice(-50) } as Prisma.InputJsonValue,
+          },
+        });
+        stats.nodesLinked += 1;
+        continue;
+      }
+      const created = await prisma.ontologyNode.create({
+        data: {
+          workspaceId,
+          label: entity.label,
+          type: entity.type,
+          status: 'CANDIDATE',
+          confidence: 0.7,
+          metadata: { sources: [provenance] } as Prisma.InputJsonValue,
+        },
+      });
+      nodeIdByLabel.set(entity.label, created.id);
+      stats.nodesCreated += 1;
+    }
+
+    for (const relation of unit.relations) {
+      const sourceNodeId = nodeIdByLabel.get(relation.sourceLabel);
+      const targetNodeId = nodeIdByLabel.get(relation.targetLabel);
+      if (!sourceNodeId || !targetNodeId) continue;
+      const duplicate = await prisma.ontologyEdge.findFirst({
+        where: { workspaceId, sourceNodeId, targetNodeId, relationType: relation.relationType },
+      });
+      if (duplicate) continue;
+      await prisma.ontologyEdge.create({
+        data: {
+          workspaceId,
+          sourceNodeId,
+          targetNodeId,
+          relationType: relation.relationType,
+          status: 'CANDIDATE',
+          confidence: 0.6,
+          evidence: provenance as Prisma.InputJsonValue,
+        },
+      });
+      stats.edgesCreated += 1;
+    }
+  }
+  return stats;
+}
+
+/** 문서에서 온톨로지 후보 추출 (제안서: 생성→추출→연결→검수 파이프라인) */
+export async function extractFromDocument(userId: string, documentId: string) {
+  const { workspaceId } = await requireDocumentCapability(
+    userId,
+    documentId,
+    Capabilities.EDIT_DOCUMENTS,
+  );
+  const blocks = await prisma.documentBlock.findMany({
+    where: { documentId },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const units = blocks
+    .map((b) => ({ unitId: b.id, text: blockTextForExtraction(b.content as Record<string, unknown>) }))
+    .filter((u) => u.text.trim().length > 0);
+
+  const stats = await persistExtraction(workspaceId, units, { documentId });
+  await writeAuditLog({
+    actorId: userId,
+    action: 'ontology.extract_document',
+    targetType: 'Document',
+    targetId: documentId,
+    after: stats,
+  });
+  return stats;
+}
+
+/** 지식 소스(청크)에서 온톨로지 후보 추출. KB 처리 파이프라인에서 자동 호출된다 */
+export async function extractFromKnowledgeSource(userId: string, sourceId: string) {
+  const source = await prisma.knowledgeSource.findUnique({ where: { id: sourceId } });
+  if (!source) {
+    throw new AppError(ErrorCodes.NOT_FOUND, { message: '지식 소스를 찾을 수 없습니다.' });
+  }
+  await requireWorkspaceCapability(userId, source.workspaceId, Capabilities.EDIT_DOCUMENTS);
+  const chunks = await prisma.knowledgeChunk.findMany({
+    where: { sourceId },
+    select: { id: true, text: true },
+  });
+  const stats = await persistExtraction(
+    source.workspaceId,
+    chunks.map((c) => ({ unitId: c.id, text: c.text })),
+    { sourceId },
+  );
+  await writeAuditLog({
+    actorId: userId,
+    action: 'ontology.extract_source',
+    targetType: 'KnowledgeSource',
+    targetId: sourceId,
+    after: stats,
+  });
+  return stats;
+}
 
 /** 샘플 온톨로지 시드 (그래프 뷰어 확인용) */
 export async function seedSampleOntology(userId: string, workspaceId: string) {

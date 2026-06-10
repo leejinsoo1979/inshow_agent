@@ -4,10 +4,14 @@ import type {
   ChartContent,
   ChecklistContent,
   CtaContent,
+  DocMetaContent,
+  FormulaContent,
   HeadingContent,
   ImageContent,
   ParagraphContent,
+  QnaContent,
   SourceReferenceContent,
+  TableContent,
 } from '@archi/editor';
 import { ChartView } from './ChartView';
 
@@ -190,6 +194,22 @@ export function BlockContentEditor({ type, content, onChange }: Props) {
       const c = content as unknown as ChartContent;
       return <ChartBlockEditor content={c} onChange={onChange} />;
     }
+    case 'table': {
+      const c = content as unknown as TableContent;
+      return <TableBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'formula': {
+      const c = content as unknown as FormulaContent;
+      return <FormulaBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'doc_meta': {
+      const c = content as unknown as DocMetaContent;
+      return <DocMetaBlockEditor content={c} onChange={onChange} />;
+    }
+    case 'qna': {
+      const c = content as unknown as QnaContent;
+      return <QnaBlockEditor content={c} onChange={onChange} />;
+    }
     default:
       return <p className="text-sm text-red-500">지원하지 않는 블록 타입: {type}</p>;
   }
@@ -293,6 +313,326 @@ function ChartBlockEditor({
           + 시리즈 추가
         </button>
       </div>
+    </div>
+  );
+}
+
+/** 기준표/비교표 편집: 렌더링된 표 + 헤더/행 CSV 입력 */
+function TableBlockEditor({
+  content,
+  onChange,
+}: {
+  content: TableContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const headers = content.headers ?? [];
+  const rows = content.rows ?? [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={content.title ?? ''}
+        placeholder="표 제목 (예: 단열재별 두께 산정표)"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="font-semibold outline-none"
+      />
+      <div className="overflow-x-auto rounded-lg border border-zinc-200">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-zinc-900 text-left text-white">
+              {headers.map((h, i) => (
+                <th key={i} className="px-3 py-1.5 font-semibold">
+                  {h || `열 ${i + 1}`}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={ri} className={ri % 2 === 1 ? 'bg-zinc-50' : ''}>
+                {headers.map((_, ci) => (
+                  <td key={ci} className="border-t border-zinc-100 px-3 py-1.5">
+                    <input
+                      value={row[ci] ?? ''}
+                      onChange={(e) => {
+                        const next = rows.map((r, j) =>
+                          j === ri ? headers.map((__, k) => (k === ci ? e.target.value : (r[k] ?? ''))) : r,
+                        );
+                        onChange({ ...content, rows: next });
+                      }}
+                      className="w-full bg-transparent outline-none"
+                    />
+                  </td>
+                ))}
+                <td className="w-8 border-t border-zinc-100 text-center">
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...content, rows: rows.filter((_, j) => j !== ri) })}
+                    disabled={rows.length <= 1}
+                    className="text-xs text-zinc-300 hover:text-red-500 disabled:opacity-30"
+                    aria-label="행 삭제"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-zinc-500">
+        <label className="flex flex-1 items-center gap-2">
+          헤더(쉼표 구분)
+          <input
+            value={headers.join(', ')}
+            onChange={(e) => {
+              const nextHeaders = e.target.value.split(',').map((h) => h.trim());
+              onChange({
+                ...content,
+                headers: nextHeaders,
+                rows: rows.map((r) => nextHeaders.map((_, i) => r[i] ?? '')),
+              });
+            }}
+            className="flex-1 rounded border border-zinc-200 px-2 py-1 text-zinc-900"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => onChange({ ...content, rows: [...rows, headers.map(() => '')] })}
+          className="hover:text-zinc-900"
+        >
+          + 행 추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 계산식 편집: 수식, 변수 설명, 결과 */
+function FormulaBlockEditor({
+  content,
+  onChange,
+}: {
+  content: FormulaContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const variables = content.variables ?? [];
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border-l-4 border-zinc-900 bg-zinc-50 p-3">
+      <input
+        value={content.title ?? ''}
+        placeholder="계산식 제목 (예: 열관류율 계산)"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="bg-transparent text-sm font-semibold outline-none"
+      />
+      <input
+        value={content.expression}
+        placeholder="예: U = 1 / Rtotal"
+        onChange={(e) => onChange({ ...content, expression: e.target.value })}
+        className="rounded-md bg-zinc-900 px-3 py-2 font-mono text-sm text-white outline-none"
+      />
+      {variables.map((v, i) => (
+        <div key={i} className="flex items-center gap-2 text-xs">
+          <input
+            value={v.symbol}
+            placeholder="기호"
+            onChange={(e) => {
+              const next = variables.map((it, j) => (j === i ? { ...it, symbol: e.target.value } : it));
+              onChange({ ...content, variables: next });
+            }}
+            className="w-16 rounded border border-zinc-200 px-2 py-1 font-mono"
+          />
+          <input
+            value={v.meaning}
+            placeholder="의미"
+            onChange={(e) => {
+              const next = variables.map((it, j) => (j === i ? { ...it, meaning: e.target.value } : it));
+              onChange({ ...content, variables: next });
+            }}
+            className="flex-1 rounded border border-zinc-200 px-2 py-1"
+          />
+          <input
+            value={v.unit ?? ''}
+            placeholder="단위"
+            onChange={(e) => {
+              const next = variables.map((it, j) => (j === i ? { ...it, unit: e.target.value } : it));
+              onChange({ ...content, variables: next });
+            }}
+            className="w-20 rounded border border-zinc-200 px-2 py-1"
+          />
+          <button
+            type="button"
+            onClick={() => onChange({ ...content, variables: variables.filter((_, j) => j !== i) })}
+            className="text-zinc-400 hover:text-red-500"
+            aria-label="변수 삭제"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-3 text-xs">
+        <button
+          type="button"
+          onClick={() =>
+            onChange({ ...content, variables: [...variables, { symbol: '', meaning: '', unit: '' }] })
+          }
+          className="text-zinc-500 hover:text-zinc-900"
+        >
+          + 변수 추가
+        </button>
+        <input
+          value={content.result ?? ''}
+          placeholder="결과/예시 값 (선택)"
+          onChange={(e) => onChange({ ...content, result: e.target.value })}
+          className="flex-1 rounded border border-zinc-200 px-2 py-1"
+        />
+      </div>
+    </div>
+  );
+}
+
+const REVIEW_STATUS_LABELS: Record<string, string> = {
+  draft: '작성 중',
+  review: '검수 대기',
+  approved: '검수 완료',
+};
+
+/** 문서 메타 편집: 문서코드/버전/작성자/발행일/검수 상태 */
+function DocMetaBlockEditor({
+  content,
+  onChange,
+}: {
+  content: DocMetaContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs sm:grid-cols-5">
+      <label className="flex flex-col gap-1 text-zinc-400">
+        문서코드
+        <input
+          value={content.docCode ?? ''}
+          placeholder="ARC-INS-002"
+          onChange={(e) => onChange({ ...content, docCode: e.target.value })}
+          className="rounded border border-zinc-200 bg-white px-2 py-1 font-mono text-zinc-900"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-zinc-400">
+        버전
+        <input
+          value={content.version ?? ''}
+          placeholder="v1.0"
+          onChange={(e) => onChange({ ...content, version: e.target.value })}
+          className="rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-zinc-400">
+        작성자
+        <input
+          value={content.author ?? ''}
+          onChange={(e) => onChange({ ...content, author: e.target.value })}
+          className="rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-zinc-400">
+        발행일
+        <input
+          value={content.publishedAt ?? ''}
+          placeholder="2026-06-10"
+          onChange={(e) => onChange({ ...content, publishedAt: e.target.value })}
+          className="rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-zinc-400">
+        검수 상태
+        <select
+          value={content.reviewStatus ?? 'draft'}
+          onChange={(e) => onChange({ ...content, reviewStatus: e.target.value })}
+          className="rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+        >
+          {Object.entries(REVIEW_STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+/** 현장 Q&A 편집 */
+function QnaBlockEditor({
+  content,
+  onChange,
+}: {
+  content: QnaContent;
+  onChange: (content: Record<string, unknown>) => void;
+}) {
+  const items = content.items ?? [];
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        value={content.title ?? ''}
+        placeholder="Q&A 제목 (예: 현장 질문)"
+        onChange={(e) => onChange({ ...content, title: e.target.value })}
+        className="font-semibold outline-none"
+      />
+      {items.map((item, i) => (
+        <div key={i} className="rounded-lg border border-zinc-200 p-3 text-sm">
+          <div className="mb-1 flex items-start gap-2">
+            <span className="mt-0.5 font-bold text-zinc-900">Q.</span>
+            <input
+              value={item.question}
+              placeholder="질문"
+              onChange={(e) => {
+                const next = items.map((it, j) => (j === i ? { ...it, question: e.target.value } : it));
+                onChange({ ...content, items: next });
+              }}
+              className="flex-1 font-medium outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => onChange({ ...content, items: items.filter((_, j) => j !== i) })}
+              disabled={items.length <= 1}
+              className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-30"
+              aria-label="Q&A 삭제"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mb-1 flex items-start gap-2">
+            <span className="mt-0.5 font-bold text-zinc-400">A.</span>
+            <textarea
+              value={item.answer}
+              placeholder="답변"
+              rows={2}
+              onChange={(e) => {
+                const next = items.map((it, j) => (j === i ? { ...it, answer: e.target.value } : it));
+                onChange({ ...content, items: next });
+              }}
+              className="flex-1 resize-none text-zinc-700 outline-none"
+            />
+          </div>
+          <input
+            value={item.basis ?? ''}
+            placeholder="근거 (법규 조항, 시방서 등 · 선택)"
+            onChange={(e) => {
+              const next = items.map((it, j) => (j === i ? { ...it, basis: e.target.value } : it));
+              onChange({ ...content, items: next });
+            }}
+            className="w-full rounded bg-zinc-50 px-2 py-1 text-xs text-zinc-500 outline-none"
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          onChange({ ...content, items: [...items, { question: '', answer: '', basis: '' }] })
+        }
+        className="self-start text-sm text-zinc-500 hover:text-zinc-900"
+      >
+        + 질문 추가
+      </button>
     </div>
   );
 }

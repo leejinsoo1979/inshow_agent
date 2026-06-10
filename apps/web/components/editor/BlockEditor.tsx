@@ -36,6 +36,28 @@ const NEW_BLOCK_DEFAULTS: Record<string, Record<string, unknown>> = {
     labels: ['항목 1', '항목 2', '항목 3'],
     series: [{ name: '', values: [10, 20, 15] }],
   },
+  [BlockTypes.TABLE]: {
+    title: '',
+    headers: ['항목', '규격', '비고'],
+    rows: [['', '', '']],
+  },
+  [BlockTypes.FORMULA]: {
+    title: '',
+    expression: '',
+    variables: [],
+    result: '',
+  },
+  [BlockTypes.DOC_META]: {
+    docCode: '',
+    version: 'v1.0',
+    author: '',
+    publishedAt: '',
+    reviewStatus: 'draft',
+  },
+  [BlockTypes.QNA]: {
+    title: '현장 Q&A',
+    items: [{ question: '', answer: '', basis: '' }],
+  },
 };
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -46,6 +68,10 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
   source_reference: '출처',
   cta: 'CTA',
   chart: '차트',
+  table: '표',
+  formula: '계산식',
+  doc_meta: '문서정보',
+  qna: 'Q&A',
 };
 
 type Props = {

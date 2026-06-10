@@ -13,7 +13,7 @@ export type DocumentForExport = {
   blocks: ExportBlock[];
 };
 
-export type ExportFormat = 'txt' | 'markdown' | 'pdf';
+export type ExportFormat = 'txt' | 'markdown' | 'pdf' | 'docx' | 'html';
 
 export type ExportOptions = {
   /** PDF 한글 렌더링용 폰트 바이트 (호출자가 주입) */
@@ -84,3 +84,68 @@ export const CHART_TYPE_LABELS: Record<string, string> = {
   line: '선',
   pie: '파이',
 };
+
+export type TableData = { title?: string; headers: string[]; rows: string[][] };
+
+export function tableData(content: Record<string, unknown>): TableData | null {
+  const headers = Array.isArray(content.headers) ? (content.headers as string[]) : [];
+  const rows = Array.isArray(content.rows) ? (content.rows as string[][]) : [];
+  if (headers.length === 0) return null;
+  return {
+    title: typeof content.title === 'string' ? content.title : undefined,
+    headers,
+    rows,
+  };
+}
+
+export type FormulaData = {
+  title?: string;
+  expression: string;
+  variables: { symbol: string; meaning: string; unit?: string }[];
+  result?: string;
+};
+
+export function formulaData(content: Record<string, unknown>): FormulaData | null {
+  if (typeof content.expression !== 'string' || !content.expression) return null;
+  return {
+    title: typeof content.title === 'string' ? content.title : undefined,
+    expression: content.expression,
+    variables: Array.isArray(content.variables)
+      ? (content.variables as FormulaData['variables'])
+      : [],
+    result: typeof content.result === 'string' && content.result ? content.result : undefined,
+  };
+}
+
+export type DocMetaData = {
+  docCode?: string;
+  version?: string;
+  author?: string;
+  publishedAt?: string;
+  reviewStatus?: string;
+};
+
+export const REVIEW_STATUS_LABELS: Record<string, string> = {
+  draft: '작성 중',
+  review: '검수 대기',
+  approved: '검수 완료',
+};
+
+export function docMetaEntries(content: Record<string, unknown>): [string, string][] {
+  const c = content as DocMetaData;
+  const entries: [string, string][] = [];
+  if (c.docCode) entries.push(['문서코드', c.docCode]);
+  if (c.version) entries.push(['버전', c.version]);
+  if (c.author) entries.push(['작성자', c.author]);
+  if (c.publishedAt) entries.push(['발행일', c.publishedAt]);
+  if (c.reviewStatus) {
+    entries.push(['검수 상태', REVIEW_STATUS_LABELS[c.reviewStatus] ?? c.reviewStatus]);
+  }
+  return entries;
+}
+
+export type QnaItem = { question: string; answer: string; basis?: string };
+
+export function qnaItems(content: Record<string, unknown>): QnaItem[] {
+  return Array.isArray(content.items) ? (content.items as QnaItem[]) : [];
+}

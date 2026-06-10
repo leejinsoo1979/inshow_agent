@@ -4,8 +4,10 @@ import {
   MockSearchProvider,
   planAgentResponse,
   requiresCitation,
+  routeAgentRole,
   type AgentActionInput,
   type AgentPlan,
+  type AgentRole,
   type LlmProvider,
   type SearchResult,
 } from '@archi/ai';
@@ -80,6 +82,9 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     selectedBlockText = content?.text;
   }
 
+  // 역할별 에이전트 라우팅 (콘텐츠/법규/시공/이미지/지식/PM)
+  const agentRole = routeAgentRole(input.message);
+
   // 법규/공법 질문이면 출처 검색을 먼저 수행한다 (citation 없는 확답 금지)
   let searchResults: SearchResult[] | undefined;
   if (requiresCitation(input.message)) {
@@ -113,6 +118,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
         documentTitle: document.title,
         selectedBlockId,
         selectedBlockText,
+        role: agentRole,
       });
       if (llmPlan) plan = llmPlan;
     }
@@ -125,7 +131,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     data: {
       chatSessionId: chatSession.id,
       role: 'ASSISTANT',
-      content: { text: plan.reply },
+      content: { text: plan.reply, agentRole: agentRole.key },
     },
   });
 
@@ -155,6 +161,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
   return {
     chatSessionId: chatSession.id,
     reply: { id: assistantMessage.id, text: plan.reply },
+    agentRole: { key: agentRole.key, label: agentRole.label },
     sources: searchResults ?? [],
     actions: actions.map((a) => ({
       id: a.id,
@@ -266,10 +273,11 @@ async function planWithLlm(
     documentTitle?: string;
     selectedBlockId?: string;
     selectedBlockText?: string;
+    role?: AgentRole;
   },
 ): Promise<AgentPlan | null> {
   const system = [
-    '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
+    args.role?.persona ?? '너는 건축·인테리어 전문 콘텐츠를 작성하는 ARCHI Agent Studio의 AI 에이전트다.',
     '반드시 JSON 객체 하나만 출력해라. 마크다운 코드펜스나 다른 텍스트를 붙이지 마라.',
     '형식: {"reply": "사용자에게 보여줄 한국어 응답", "blocks": [...], "updated_text": "선택 블록 수정안(선택)"}',
     'blocks 항목은 다음 타입만 허용: heading {level:1|2|3, text}, paragraph {text}, checklist {title?, items:[{text, checked:false}]}, cta {text, buttonLabel?, url?}, chart {chartType:"bar"|"line"|"pie", title?, labels:[...], series:[{name?, values:[숫자...]}]},',

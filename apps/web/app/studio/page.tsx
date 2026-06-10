@@ -31,6 +31,8 @@ export default function StudioPage() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [newProjectName, setNewProjectName] = useState('');
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocType, setNewDocType] = useState('BLOG_POST');
+  const [withTemplate, setWithTemplate] = useState(true);
 
   useEffect(() => {
     apiFetch<Me>('/api/auth/me')
@@ -98,7 +100,12 @@ export default function StudioPage() {
     try {
       const doc = await apiFetch<{ id: string }>('/api/documents', {
         method: 'POST',
-        body: JSON.stringify({ projectId, title: newDocTitle.trim(), type: 'BLOG_POST' }),
+        body: JSON.stringify({
+          projectId,
+          title: newDocTitle.trim(),
+          type: newDocType,
+          withTemplate,
+        }),
       });
       router.push(`/studio/${doc.id}`);
     } catch (err) {
@@ -209,16 +216,37 @@ export default function StudioPage() {
               </li>
             ))}
           </ul>
-          <form onSubmit={handleCreateDocument} className="flex gap-2">
-            <input
-              placeholder="새 문서 제목"
-              value={newDocTitle}
-              onChange={(e) => setNewDocTitle(e.target.value)}
-              className="flex-1 rounded-lg border border-zinc-300 px-3 py-2"
-            />
-            <button type="submit" className="rounded-lg bg-zinc-900 px-4 text-white">
-              문서 만들기
-            </button>
+          <form onSubmit={handleCreateDocument} className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input
+                placeholder="새 문서 제목"
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                className="flex-1 rounded-lg border border-zinc-300 px-3 py-2"
+              />
+              <select
+                value={newDocType}
+                onChange={(e) => setNewDocType(e.target.value)}
+                className="rounded-lg border border-zinc-300 px-2 py-2 text-sm"
+              >
+                <option value="BLOG_POST">블로그</option>
+                <option value="PROPOSAL">제안서</option>
+                <option value="REPORT">기술자료/보고서</option>
+                <option value="SNS_CAPTION">SNS 캡션</option>
+                <option value="KNOWLEDGE_NOTE">지식 노트</option>
+              </select>
+              <button type="submit" className="rounded-lg bg-zinc-900 px-4 text-white">
+                문서 만들기
+              </button>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-zinc-500">
+              <input
+                type="checkbox"
+                checked={withTemplate}
+                onChange={(e) => setWithTemplate(e.target.checked)}
+              />
+              문서 유형에 맞는 블록 템플릿으로 시작 (문서코드·법규·계산식·표 등 자동 구성)
+            </label>
           </form>
         </section>
       )}

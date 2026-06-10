@@ -3,7 +3,11 @@ import {
   chartData,
   checklistItems,
   collectSources,
+  docMetaEntries,
+  formulaData,
+  qnaItems,
   safeFilename,
+  tableData,
   type DocumentForExport,
   type Exporter,
   type ExportResult,
@@ -57,6 +61,47 @@ export class TxtExporter implements Exporter {
         case 'cta':
           lines.push(`▶ ${c.text ?? ''}${c.url ? ` (${c.url})` : ''}`, '');
           break;
+        case 'table': {
+          const table = tableData(block.content);
+          if (!table) break;
+          if (table.title) lines.push(table.title);
+          lines.push(table.headers.join(' | '));
+          lines.push(table.headers.map(() => '---').join(' | '));
+          for (const row of table.rows) {
+            lines.push(table.headers.map((_, i) => row[i] ?? '').join(' | '));
+          }
+          lines.push('');
+          break;
+        }
+        case 'formula': {
+          const formula = formulaData(block.content);
+          if (!formula) break;
+          if (formula.title) lines.push(formula.title);
+          lines.push(`  ${formula.expression}`);
+          for (const v of formula.variables) {
+            lines.push(`  - ${v.symbol}: ${v.meaning}${v.unit ? ` (${v.unit})` : ''}`);
+          }
+          if (formula.result) lines.push(`  = ${formula.result}`);
+          lines.push('');
+          break;
+        }
+        case 'doc_meta': {
+          const entries = docMetaEntries(block.content);
+          if (entries.length === 0) break;
+          lines.push(entries.map(([k, v]) => `${k}: ${v}`).join(' / '), '');
+          break;
+        }
+        case 'qna': {
+          const items = qnaItems(block.content);
+          if (typeof c.title === 'string' && c.title) lines.push(c.title);
+          for (const item of items) {
+            lines.push(`Q. ${item.question}`);
+            lines.push(`A. ${item.answer}`);
+            if (item.basis) lines.push(`   근거: ${item.basis}`);
+          }
+          lines.push('');
+          break;
+        }
         default:
           break;
       }
