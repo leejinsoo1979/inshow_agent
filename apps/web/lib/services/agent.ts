@@ -514,10 +514,34 @@ async function executeAction(userId: string, action: AgentActionInput) {
       }
       return { insertedBlockIds: inserted, warnings };
     }
-    case 'update_block': {
+    case 'update_block':
+    case 'replace_block_content': {
       const updated = await updateBlock(userId, action.target.blockId, {
         content: action.payload.content,
       });
+      return { updatedBlockId: updated.id, warnings };
+    }
+    case 'append_to_block': {
+      const block = await prisma.documentBlock.findUnique({
+        where: { id: action.target.blockId },
+      });
+      if (!block) {
+        throw new AppError(ErrorCodes.NOT_FOUND, { message: '이어쓸 블록을 찾을 수 없습니다.' });
+      }
+      const content = block.content as Record<string, unknown>;
+      // 텍스트를 담는 필드를 찾아 이어쓴다 (paragraph.text, code.code, summary 등)
+      const field = ['text', 'code', 'summary'].find((f) => typeof content[f] === 'string');
+      if (!field) {
+        throw new AppError(ErrorCodes.VALIDATION_FAILED, {
+          message: '이 블록 타입에는 이어쓸 텍스트 필드가 없습니다.',
+        });
+      }
+      const existing = String(content[field] ?? '');
+      const nextContent = {
+        ...content,
+        [field]: existing ? `${existing}\n${action.payload.text}` : action.payload.text,
+      };
+      const updated = await updateBlock(userId, action.target.blockId, { content: nextContent });
       return { updatedBlockId: updated.id, warnings };
     }
   }

@@ -50,6 +50,62 @@ describe('AgentAction schema', () => {
   });
 });
 
+describe('replace_block_content / append_to_block 액션', () => {
+  it('append_to_block 승인 시 블록 텍스트에 이어쓴다', async () => {
+    const { user, doc } = await setupDocument();
+    const block = await addBlock(user.id, doc.id, {
+      block: { type: 'paragraph', content: { text: '첫 줄' } },
+    });
+    const action = await prisma.agentAction.create({
+      data: {
+        documentId: doc.id,
+        type: 'append_to_block',
+        payload: {
+          action_type: 'append_to_block',
+          target: { documentId: doc.id, blockId: block.id },
+          payload: { text: '둘째 줄' },
+          requires_approval: true,
+          risk_level: 'low',
+        },
+        riskLevel: 'low',
+        requiresApproval: true,
+      },
+    });
+    const approved = await approveAction(user.id, action.id);
+    expect(approved.status).toBe('EXECUTED');
+    const fetched = await getDocument(user.id, doc.id);
+    const text = (fetched.blocks.find((b) => b.id === block.id)!.content as { text: string }).text;
+    expect(text).toContain('첫 줄');
+    expect(text).toContain('둘째 줄');
+  });
+
+  it('replace_block_content 승인 시 블록 내용을 통째로 교체한다', async () => {
+    const { user, doc } = await setupDocument();
+    const block = await addBlock(user.id, doc.id, {
+      block: { type: 'paragraph', content: { text: '원본' } },
+    });
+    const action = await prisma.agentAction.create({
+      data: {
+        documentId: doc.id,
+        type: 'replace_block_content',
+        payload: {
+          action_type: 'replace_block_content',
+          target: { documentId: doc.id, blockId: block.id },
+          payload: { content: { text: '교체본' } },
+          requires_approval: true,
+          risk_level: 'medium',
+        },
+        riskLevel: 'medium',
+        requiresApproval: true,
+      },
+    });
+    await approveAction(user.id, action.id);
+    const fetched = await getDocument(user.id, doc.id);
+    const text = (fetched.blocks.find((b) => b.id === block.id)!.content as { text: string }).text;
+    expect(text).toBe('교체본');
+  });
+});
+
 describe('AI chat → action 승인 플로우', () => {
   it('블로그 초안 요청 시 insert_blocks 액션이 제안되고, 승인 시 블록이 삽입된다', async () => {
     const { user, doc } = await setupDocument();
