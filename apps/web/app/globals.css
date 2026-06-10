@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* class 기반 다크모드 (.dark 하위에서 dark: variant 활성화) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #fafafa;
   --foreground: #18181b;
@@ -24,8 +27,12 @@ body {
   animation: marquee 28s linear infinite;
 }
 
-/* 고스트(아웃라인) 타이포 */
+/* 고스트(아웃라인) 타이포 — 테마별 스트로크 */
 .text-ghost {
   color: transparent;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.3);
+}
+
+.dark .text-ghost {
   -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.28);
 }

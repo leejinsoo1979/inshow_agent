@@ -6,8 +6,10 @@ import { useEffect, useRef } from 'react';
  * 레퍼런스(v0-jarvis) 히어로 constellation 재현.
  * 핵심 특징: 블루 라인/도트, 클러스터(군집) 분포, 허브 노드의 화이트 코어 + 블루 글로우.
  */
-export function HeroNetwork() {
+export function HeroNetwork({ dark = true }: { dark?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -82,7 +84,11 @@ export function HeroNetwork() {
         if (p.y > height + 20) p.y = -20;
       }
 
-      // 라인: 전부 블루, 가까울수록 진하게
+      // 블랙&화이트 테마: 다크=화이트 라인, 라이트=블랙 라인
+      const line = darkRef.current ? '255, 255, 255' : '24, 24, 27';
+      const dot = darkRef.current ? 'rgba(255, 255, 255, 0.75)' : 'rgba(24, 24, 27, 0.7)';
+      const coreColor = darkRef.current ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.9)';
+
       ctx!.lineWidth = 0.7;
       for (let i = 0; i < particles.length; i += 1) {
         const a = particles[i]!;
@@ -94,8 +100,8 @@ export function HeroNetwork() {
           if (dy > LINK_DIST || dy < -LINK_DIST) continue;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist > LINK_DIST) continue;
-          const alpha = (1 - dist / LINK_DIST) * 0.55;
-          ctx!.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
+          const alpha = (1 - dist / LINK_DIST) * (darkRef.current ? 0.4 : 0.3);
+          ctx!.strokeStyle = `rgba(${line}, ${alpha})`;
           ctx!.beginPath();
           ctx!.moveTo(a.x, a.y);
           ctx!.lineTo(b.x, b.y);
@@ -107,20 +113,20 @@ export function HeroNetwork() {
       for (const p of particles) {
         if (p.hub) {
           const glow = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, 16);
-          glow.addColorStop(0, 'rgba(147, 197, 253, 0.85)');
-          glow.addColorStop(0.25, 'rgba(59, 130, 246, 0.35)');
-          glow.addColorStop(1, 'rgba(59, 130, 246, 0)');
+          glow.addColorStop(0, `rgba(${line}, 0.7)`);
+          glow.addColorStop(0.25, `rgba(${line}, 0.25)`);
+          glow.addColorStop(1, `rgba(${line}, 0)`);
           ctx!.fillStyle = glow;
           ctx!.beginPath();
           ctx!.arc(p.x, p.y, 16, 0, Math.PI * 2);
           ctx!.fill();
 
-          ctx!.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx!.fillStyle = coreColor;
           ctx!.beginPath();
           ctx!.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
           ctx!.fill();
         } else {
-          ctx!.fillStyle = 'rgba(96, 165, 250, 0.8)';
+          ctx!.fillStyle = dot;
           ctx!.beginPath();
           ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2);
           ctx!.fill();
