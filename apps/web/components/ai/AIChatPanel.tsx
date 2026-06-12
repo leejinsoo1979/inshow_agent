@@ -59,6 +59,8 @@ const ACTION_LABELS: Record<string, string> = {
   convert_block_type: '블록 타입 변환',
   update_block_title: '제목 변경',
   mark_block_approved: '블록 승인',
+  generate_image: '이미지 생성',
+  extract_ontology: '지식 추출',
 };
 
 export function AIChatPanel({
@@ -509,6 +511,13 @@ function ActionPayloadPreview({ type, payload }: { type: string; payload: unknow
   }
   if (type === 'mark_block_approved') {
     return <p className="text-xs text-zinc-300">이 블록을 검수 완료로 표시합니다.</p>;
+  }
+  if (type === 'generate_image') {
+    const p = payload as { payload?: { prompt?: string } };
+    return <p className="line-clamp-2 text-xs text-zinc-300">🖼 {p.payload?.prompt ?? ''}</p>;
+  }
+  if (type === 'extract_ontology') {
+    return <p className="text-xs text-zinc-300">이 문서에서 지식 노드/관계를 추출합니다.</p>;
   }
   return null;
 }

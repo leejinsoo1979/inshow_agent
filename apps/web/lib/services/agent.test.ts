@@ -227,6 +227,33 @@ describe('확장 AI 액션', () => {
     expect((updated!.content as { text: string }).text).toBe('변환됨');
   });
 
+  it('generate_image는 이미지 블록을 만들고 채운다', async () => {
+    const { user, doc } = await setupDocument();
+    const action = await makeAction(doc.id, 'generate_image', {
+      target: { documentId: doc.id },
+      payload: { prompt: '모던 거실 렌더', caption: '거실' },
+    });
+    await approveAction(user.id, action.id);
+    const blocks = await prisma.documentBlock.findMany({ where: { documentId: doc.id } });
+    const img = blocks.find((b) => b.type === 'image');
+    expect(img).toBeTruthy();
+    // mock provider라도 url이 채워진다
+    expect((img!.content as { url?: string }).url).toBeTruthy();
+  });
+
+  it('extract_ontology는 문서에서 노드를 추출한다', async () => {
+    const { user, doc, workspace } = await setupDocument();
+    await addBlock(user.id, doc.id, { block: { type: 'paragraph', content: { text: '결로 방지를 위한 단열재 시공' } } });
+    const action = await makeAction(doc.id, 'extract_ontology', {
+      target: { documentId: doc.id },
+      payload: {},
+    });
+    const res = await approveAction(user.id, action.id);
+    expect(res.status).toBe('EXECUTED');
+    const nodes = await prisma.ontologyNode.findMany({ where: { workspaceId: workspace.id } });
+    expect(nodes.length).toBeGreaterThan(0);
+  });
+
   it('mark_block_approved는 metadata.approved를 설정한다', async () => {
     const { user, doc } = await setupDocument();
     const b1 = await addBlock(user.id, doc.id, { block: { type: 'paragraph', content: { text: 'x' } } });

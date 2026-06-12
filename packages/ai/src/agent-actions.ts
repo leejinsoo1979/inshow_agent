@@ -104,6 +104,24 @@ export const markBlockApprovedActionSchema = z.object({
   risk_level: riskLevelSchema.default('high'),
 });
 
+/** 이미지 생성 후 이미지 블록 삽입. 크레딧 소모 → medium 위험 */
+export const generateImageActionSchema = z.object({
+  action_type: z.literal('generate_image'),
+  target: z.object({ documentId: z.string(), afterBlockId: z.string().optional() }),
+  payload: z.object({ prompt: z.string().min(1), caption: z.string().optional() }),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('medium'),
+});
+
+/** 문서에서 온톨로지(지식 노드/관계) 후보 추출 */
+export const extractOntologyActionSchema = z.object({
+  action_type: z.literal('extract_ontology'),
+  target: z.object({ documentId: z.string() }),
+  payload: z.object({}).default({}),
+  requires_approval: z.boolean().default(true),
+  risk_level: riskLevelSchema.default('low'),
+});
+
 export const agentActionSchema = z.discriminatedUnion('action_type', [
   insertBlocksActionSchema,
   updateBlockActionSchema,
@@ -115,6 +133,8 @@ export const agentActionSchema = z.discriminatedUnion('action_type', [
   convertBlockTypeActionSchema,
   updateBlockTitleActionSchema,
   markBlockApprovedActionSchema,
+  generateImageActionSchema,
+  extractOntologyActionSchema,
 ]);
 
 export type AgentActionInput = z.infer<typeof agentActionSchema>;
@@ -128,6 +148,8 @@ export type CreateChildBlockAction = z.infer<typeof createChildBlockActionSchema
 export type ConvertBlockTypeAction = z.infer<typeof convertBlockTypeActionSchema>;
 export type UpdateBlockTitleAction = z.infer<typeof updateBlockTitleActionSchema>;
 export type MarkBlockApprovedAction = z.infer<typeof markBlockApprovedActionSchema>;
+export type GenerateImageAction = z.infer<typeof generateImageActionSchema>;
+export type ExtractOntologyAction = z.infer<typeof extractOntologyActionSchema>;
 
 /** 실행 가능한 action type allowlist */
 export const ALLOWED_ACTION_TYPES = [
@@ -141,6 +163,8 @@ export const ALLOWED_ACTION_TYPES = [
   'convert_block_type',
   'update_block_title',
   'mark_block_approved',
+  'generate_image',
+  'extract_ontology',
 ] as const;
 
 export function parseAgentAction(value: unknown): AgentActionInput {

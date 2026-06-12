@@ -738,6 +738,57 @@ async function executeAction(userId: string, action: AgentActionInput) {
       });
       return { updatedBlockId: updated.id, warnings };
     }
+    case 'generate_image': {
+      // 이미지 블록 생성 후 prompt로 실제 이미지를 생성해 채운다.
+      const created = await addBlock(userId, action.target.documentId, {
+        afterBlockId: action.target.afterBlockId,
+        block: {
+          type: 'image',
+          content: { prompt: action.payload.prompt, caption: action.payload.caption },
+        },
+      });
+      const doc = await prisma.document.findUnique({
+        where: { id: action.target.documentId },
+        select: { projectId: true },
+      });
+      if (doc?.projectId) {
+        try {
+          const { generateImage } = await import('./images');
+          const gen = await generateImage(userId, {
+            projectId: doc.projectId,
+            prompt: action.payload.prompt,
+            count: 1,
+          });
+          const version = gen.versions[0];
+          if (version) {
+            await prisma.documentBlock.update({
+              where: { id: created.id },
+              data: {
+                content: {
+                  imageAssetId: gen.imageAssetId,
+                  versionId: version.id,
+                  url: version.url,
+                  caption: action.payload.caption ?? action.payload.prompt.slice(0, 80),
+                } as Prisma.InputJsonValue,
+              },
+            });
+            if (version.provider === 'mock') {
+              warnings.push(
+                '이미지 provider가 설정되지 않아 임시 플레이스홀더가 삽입됐습니다. 설정 → LLM에서 OpenAI 키를 등록하세요.',
+              );
+            }
+          }
+        } catch (error) {
+          warnings.push(`이미지 생성 실패: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      return { insertedBlockIds: [created.id], warnings };
+    }
+    case 'extract_ontology': {
+      const { extractFromDocument } = await import('./ontology');
+      await extractFromDocument(userId, action.target.documentId);
+      return { extracted: true, warnings };
+    }
   }
 }
 
