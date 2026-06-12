@@ -15,6 +15,8 @@ const GRID = 4;
 const MIN_W = 80;
 const MIN_H = 36;
 const SNAP = 6; // 정렬 스냅/가이드가 작동하는 거리(px)
+const CONTAINER_PAD = 16; // 컨테이너 프레임이 자식을 감싸는 여백
+const CONTAINER_TITLE_H = 26;
 const snap = (v: number) => Math.round(v / GRID) * GRID;
 
 const TYPE_LABELS: Record<string, string> = {
@@ -688,6 +690,19 @@ export function CanvasView({
     return { artboardHeight: pages * PAGE_H, pageCount: pages };
   }, [layouts]);
 
+  /** 컨테이너 프레임 = 자식 블록들을 감싸는 경계(여백+제목). 자식 없으면 자체 레이아웃. */
+  function containerFrame(id: string): CanvasLayout | null {
+    const kids = (childIdsByParentRef.current.get(id) ?? [])
+      .map((cid) => layouts[cid])
+      .filter((x): x is CanvasLayout => Boolean(x));
+    if (kids.length === 0) return layouts[id] ?? null;
+    const minX = Math.max(0, Math.min(...kids.map((k) => k.x)) - CONTAINER_PAD);
+    const minY = Math.max(0, Math.min(...kids.map((k) => k.y)) - CONTAINER_PAD - CONTAINER_TITLE_H);
+    const maxX = Math.max(...kids.map((k) => k.x + k.w)) + CONTAINER_PAD;
+    const maxY = Math.max(...kids.map((k) => k.y + k.h)) + CONTAINER_PAD;
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
   if (error) {
     return <div className="flex h-full items-center justify-center text-sm text-red-500">{error}</div>;
   }
@@ -764,6 +779,49 @@ export function CanvasView({
             const selected = selectedIds.has(block.id);
             const editing = editingId === block.id;
             const single = selected && selectedIds.size === 1;
+
+            // 컨테이너: 자식을 감싸는 프레임으로 렌더(제목 바=이동 핸들). z-0으로 자식 뒤에 깔린다.
+            if (block.type === 'container') {
+              const frame = containerFrame(block.id);
+              if (!frame) return null;
+              const title = (block.content as { title?: string }).title ?? '';
+              return (
+                <div
+                  key={block.id}
+                  className={`pointer-events-none absolute z-0 rounded-lg border-2 border-dashed ${
+                    selected ? 'border-zinc-900' : 'border-zinc-300'
+                  }`}
+                  style={{ left: frame.x, top: frame.y, width: frame.w, height: frame.h }}
+                >
+                  <div
+                    onPointerDown={(e) => onBlockPointerDown(e, block.id)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      applySelection(new Set([block.id]), block.id);
+                      setEditingId(block.id);
+                    }}
+                    className={`pointer-events-auto flex h-6 cursor-move items-center gap-1 rounded-t-md px-2 text-[11px] font-bold ${
+                      selected ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                    }`}
+                  >
+                    <span>📦</span>
+                    {editing ? (
+                      <input
+                        autoFocus
+                        value={title}
+                        onChange={(e) => handleContentChange(block.id, { ...block.content, title: e.target.value })}
+                        onBlur={() => setEditingId(null)}
+                        onKeyDown={(e) => e.key === 'Enter' && setEditingId(null)}
+                        className="flex-1 bg-transparent outline-none"
+                      />
+                    ) : (
+                      <span className="truncate">{title || '컨테이너'}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={block.id}
