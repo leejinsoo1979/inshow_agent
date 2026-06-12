@@ -680,6 +680,14 @@ export function CanvasView({
 
   const blocks = useMemo(() => doc?.blocks ?? [], [doc]);
 
+  // 콘텐츠가 아래로 길어지면 아트보드를 A4 페이지 단위로 늘린다(PDF 다중 페이지와 일치).
+  const { artboardHeight, pageCount } = useMemo(() => {
+    let bottom = 0;
+    for (const l of Object.values(layouts)) bottom = Math.max(bottom, l.y + l.h);
+    const pages = Math.max(1, Math.ceil((bottom + 48) / PAGE_H));
+    return { artboardHeight: pages * PAGE_H, pageCount: pages };
+  }, [layouts]);
+
   if (error) {
     return <div className="flex h-full items-center justify-center text-sm text-red-500">{error}</div>;
   }
@@ -710,9 +718,22 @@ export function CanvasView({
           <div
             ref={artboardRef}
             className="relative mx-auto select-none bg-white shadow-md ring-1 ring-zinc-300"
-            style={{ width: PAGE_W, minHeight: PAGE_H }}
+            style={{ width: PAGE_W, height: artboardHeight }}
             onPointerDown={onArtboardPointerDown}
           >
+          {/* 페이지 경계선 (A4 단위) + 페이지 번호 */}
+          {Array.from({ length: pageCount - 1 }, (_, i) => (
+            <div
+              key={`pb-${i}`}
+              className="pointer-events-none absolute left-0 right-0 z-0 border-t border-dashed border-zinc-300"
+              style={{ top: (i + 1) * PAGE_H }}
+            >
+              <span className="absolute right-2 -top-4 text-[10px] text-zinc-400">
+                {i + 2} 페이지
+              </span>
+            </div>
+          ))}
+
           {/* 정렬 가이드 */}
           {guides.x.map((gx, i) => (
             <div
