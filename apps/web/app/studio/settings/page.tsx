@@ -39,6 +39,12 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 컴패니언(로컬 워커) 기기 연결
+  const [devices, setDevices] = useState<{ id: string; name: string; status: string; lastSeenAt: string | null }[]>([]);
+  const [pairInfo, setPairInfo] = useState<{ pairCode: string } | null>(null);
+  const [testPrompt, setTestPrompt] = useState('');
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
 
   useEffect(() => {
     apiFetch<Me>('/api/auth/me')
@@ -58,6 +64,65 @@ export default function SettingsPage() {
   function connectAccount(p: 'openai' | 'anthropic') {
     if (!workspaceId) return;
     window.location.href = `/api/settings/llm/oauth/${p}/start?workspaceId=${workspaceId}`;
+  }
+
+  const loadDevices = useCallback((wsId: string) => {
+    apiFetch<{ devices: typeof devices }>(`/api/companion/devices?workspaceId=${wsId}`)
+      .then((d) => setDevices(d.devices))
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (workspaceId) loadDevices(workspaceId);
+  }, [workspaceId, loadDevices]);
+
+  async function handleAddDevice() {
+    if (!workspaceId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiFetch<{ pairCode: string }>('/api/companion/pair', {
+        method: 'POST',
+        body: JSON.stringify({ workspaceId, name: '내 컴퓨터' }),
+      });
+      setPairInfo({ pairCode: r.pairCode });
+      loadDevices(workspaceId);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTestRun() {
+    if (!workspaceId || testBusy || !testPrompt.trim()) return;
+    setTestBusy(true);
+    setTestResult(null);
+    setError(null);
+    try {
+      const { jobId } = await apiFetch<{ jobId: string }>('/api/companion/jobs', {
+        method: 'POST',
+        body: JSON.stringify({ workspaceId, prompt: testPrompt.trim(), tool: 'codex' }),
+      });
+      // 결과 폴링 (최대 60초)
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const job = await apiFetch<{ status: string; result?: string; error?: string }>(
+          `/api/companion/jobs/${jobId}`,
+        );
+        if (job.status === 'DONE') {
+          setTestResult(job.result || '(빈 출력)');
+          break;
+        }
+        if (job.status === 'FAILED') {
+          setTestResult(`실패: ${job.error ?? ''}`);
+          break;
+        }
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setTestBusy(false);
+    }
   }
 
   const loadConfigs = useCallback((wsId: string) => {
@@ -201,6 +266,85 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+          </section>
+
+          {/* 기기 연결 (로컬 컴패니언 워커 — Codex/Claude 구독 CLI) */}
+          <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
+            <h2 className="mb-1 text-sm font-semibold text-zinc-800">기기 연결 (로컬 워커)</h2>
+            <p className="mb-3 text-xs text-zinc-500">
+              내 컴퓨터에서 도는 워커를 연결하면 <b>Codex/Claude 구독 계정 CLI</b>로 작업을 실행합니다
+              (헤르메스 방식). 토큰은 내 컴퓨터에만 저장됩니다.
+            </p>
+
+            <div className="mb-3 flex items-center gap-2">
+              <button
+                onClick={handleAddDevice}
+                disabled={busy || !workspaceId}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
+              >
+                + 기기 추가 (페어링 코드)
+              </button>
+              {devices.length > 0 && (
+                <span className="text-[11px] text-zinc-400">연결된 기기 {devices.length}대</span>
+              )}
+            </div>
+
+            {pairInfo && (
+              <div className="mb-3 rounded-lg border border-zinc-300 bg-zinc-50 p-3 text-xs">
+                <p className="mb-1 text-zinc-600">아래 코드로 내 컴퓨터에서 워커를 연결하세요 (10분 유효):</p>
+                <p className="mb-2 font-mono text-2xl font-bold tracking-widest text-zinc-900">
+                  {pairInfo.pairCode}
+                </p>
+                <pre className="overflow-x-auto rounded bg-zinc-900 px-3 py-2 text-[11px] text-zinc-100">
+{`node apps/companion/index.mjs pair ${pairInfo.pairCode} --url ${typeof window !== 'undefined' ? window.location.origin : ''}
+node apps/companion/index.mjs run`}
+                </pre>
+                <p className="mt-1 text-zinc-500">워커 머신에서 미리 <code>codex login</code>(또는 claude 로그인)을 해두세요.</p>
+              </div>
+            )}
+
+            {devices.length > 0 && (
+              <ul className="mb-3 space-y-1">
+                {devices.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-xs"
+                  >
+                    <span className="font-semibold text-zinc-800">{d.name}</span>
+                    <span className={d.status === 'ACTIVE' ? 'text-zinc-600' : 'text-zinc-400'}>
+                      {d.status === 'ACTIVE' ? '● 연결됨' : '○ 대기(페어링)'}
+                      {d.lastSeenAt ? ` · ${new Date(d.lastSeenAt).toLocaleString('ko-KR')}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {devices.some((d) => d.status === 'ACTIVE') && (
+              <div className="mt-3 border-t border-zinc-100 pt-3">
+                <p className="mb-1.5 text-[11px] font-semibold text-zinc-600">Codex 테스트 실행</p>
+                <div className="flex gap-2">
+                  <input
+                    value={testPrompt}
+                    onChange={(e) => setTestPrompt(e.target.value)}
+                    placeholder="예: 단열 기준 한 줄 요약"
+                    className="flex-1 rounded-lg border border-zinc-300 px-2.5 py-1.5 text-sm"
+                  />
+                  <button
+                    onClick={handleTestRun}
+                    disabled={testBusy || !testPrompt.trim()}
+                    className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
+                  >
+                    {testBusy ? '실행 중…' : '실행'}
+                  </button>
+                </div>
+                {testResult && (
+                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700">
+                    {testResult}
+                  </pre>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">

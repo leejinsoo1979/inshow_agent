@@ -450,3 +450,40 @@ model AuditLog {
 
   @@index([targetType, targetId])
 }
+
+// 로컬 컴패니언 워커 (Codex/Claude CLI를 사용자 머신에서 구동, 헤르메스식 사이드카)
+model CompanionDevice {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  /** sha256(deviceToken) — 평문 토큰은 저장하지 않음 */
+  tokenHash   String?
+  /** 단기 페어링 코드 (등록 후 제거) */
+  pairCode    String?
+  pairExpires DateTime?
+  status      String         @default("PENDING") // PENDING | ACTIVE
+  lastSeenAt  DateTime?
+  createdAt   DateTime       @default(now())
+  jobs        CompanionJob[]
+
+  @@index([workspaceId])
+  @@index([pairCode])
+  @@index([tokenHash])
+}
+
+model CompanionJob {
+  id          String           @id @default(cuid())
+  workspaceId String
+  deviceId    String?
+  documentId  String?
+  tool        String           @default("codex") // codex | claude
+  prompt      String
+  status      String           @default("PENDING") // PENDING | RUNNING | DONE | FAILED
+  result      String?
+  error       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  device      CompanionDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+}
