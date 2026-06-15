@@ -26,7 +26,7 @@ function firstParam(value: string | string[] | undefined) {
 function authErrorMessage(error: string | undefined) {
   if (!error) return null;
   if (error === 'Configuration') {
-    return '서버 로그인 설정을 확인해 주세요. 배포 환경변수의 AUTH_GOOGLE_SECRET, AUTH_SECRET, DATABASE_URL이 올바른지 확인한 뒤 다시 배포해야 합니다.';
+    return '서버 로그인 설정을 확인해 주세요. 로컬은 .env, 배포는 Vercel 환경변수의 AUTH_GOOGLE_SECRET, AUTH_SECRET, DATABASE_URL이 올바른지 확인해야 합니다.';
   }
   return '로그인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
