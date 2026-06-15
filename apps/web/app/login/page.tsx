@@ -15,9 +15,27 @@ export const metadata = {
 // provider 활성 여부를 런타임 env로 판단하므로 정적 프리렌더하지 않는다.
 export const dynamic = 'force-dynamic';
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function authErrorMessage(error: string | undefined) {
+  if (!error) return null;
+  if (error === 'Configuration') {
+    return '서버 로그인 설정을 확인해 주세요. 배포 환경변수의 AUTH_GOOGLE_SECRET, AUTH_SECRET, DATABASE_URL이 올바른지 확인한 뒤 다시 배포해야 합니다.';
+  }
+  return '로그인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const providers = enabledProviderIds();
   const devLogin = isDevLoginAllowed(process.env);
+  const params = searchParams ? await searchParams : undefined;
+  const errorMessage = authErrorMessage(firstParam(params?.error));
 
   return (
     <main className="flex min-h-screen bg-white font-mono">
@@ -83,13 +101,19 @@ export default function LoginPage() {
               소셜 계정으로 시작하세요. 첫 로그인 시 워크스페이스가 자동으로 만들어집니다.
             </p>
 
+            {errorMessage && (
+              <p className="mb-5 border border-red-200 bg-red-50 p-4 text-xs leading-5 text-red-700">
+                {errorMessage}
+              </p>
+            )}
+
             {providers.length > 0 ? (
               <LoginButtons providers={providers} />
             ) : (
               <p className="border border-zinc-200 bg-zinc-50 p-4 text-center text-xs leading-5 text-zinc-500">
                 아직 소셜 로그인이 설정되지 않았습니다.
                 <br />
-                .env에 OAuth 키(AUTH_GOOGLE_ID 등)를 추가해 주세요.
+                .env에 OAuth 키(AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET 등)를 추가해 주세요.
               </p>
             )}
 

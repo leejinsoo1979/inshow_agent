@@ -8,27 +8,43 @@ import { devLogin } from '@/lib/services/auth';
  * 환경변수가 설정된 provider만 활성화한다.
  * (키를 아직 발급받지 않은 provider는 로그인 버튼에서도 숨긴다.)
  */
+function hasOAuthCredentials(id: string | undefined, secret: string | undefined) {
+  return Boolean(id && secret);
+}
+
 function activeProviders(): NextAuthConfig['providers'] {
   const providers: NextAuthConfig['providers'] = [];
-  if (process.env.AUTH_GOOGLE_ID) providers.push(Google);
-  if (process.env.AUTH_KAKAO_ID) providers.push(Kakao);
-  if (process.env.AUTH_NAVER_ID) providers.push(Naver);
+  if (hasOAuthCredentials(process.env.AUTH_GOOGLE_ID, process.env.AUTH_GOOGLE_SECRET)) {
+    providers.push(Google);
+  }
+  if (hasOAuthCredentials(process.env.AUTH_KAKAO_ID, process.env.AUTH_KAKAO_SECRET)) {
+    providers.push(Kakao);
+  }
+  if (hasOAuthCredentials(process.env.AUTH_NAVER_ID, process.env.AUTH_NAVER_SECRET)) {
+    providers.push(Naver);
+  }
   return providers;
 }
 
 /** 클라이언트(로그인 페이지)에서 어떤 버튼을 보일지 결정하기 위한 목록 */
 export function enabledProviderIds(): Array<'google' | 'kakao' | 'naver'> {
   const ids: Array<'google' | 'kakao' | 'naver'> = [];
-  if (process.env.AUTH_GOOGLE_ID) ids.push('google');
-  if (process.env.AUTH_KAKAO_ID) ids.push('kakao');
-  if (process.env.AUTH_NAVER_ID) ids.push('naver');
+  if (hasOAuthCredentials(process.env.AUTH_GOOGLE_ID, process.env.AUTH_GOOGLE_SECRET)) {
+    ids.push('google');
+  }
+  if (hasOAuthCredentials(process.env.AUTH_KAKAO_ID, process.env.AUTH_KAKAO_SECRET)) {
+    ids.push('kakao');
+  }
+  if (hasOAuthCredentials(process.env.AUTH_NAVER_ID, process.env.AUTH_NAVER_SECRET)) {
+    ids.push('naver');
+  }
   return ids;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: activeProviders(),
   session: { strategy: 'jwt' },
-  pages: { signIn: '/login' },
+  pages: { signIn: '/login', error: '/login' },
   trustHost: true,
   callbacks: {
     /**
