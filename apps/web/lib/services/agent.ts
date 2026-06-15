@@ -13,6 +13,7 @@ import {
 } from '@archi/ai';
 import { blockInputSchema } from '@archi/editor';
 import { getLlmProviderForWorkspace } from './llm-config';
+import { buildSessionMemoryContext, summarizeSessionIfNeeded } from './memory';
 import { sanitizeUntrustedText } from '@archi/security';
 import { AppError, Capabilities, ErrorCodes } from '@archi/shared';
 import { z } from 'zod';
@@ -137,6 +138,12 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
 
   // RAG: 사용자가 승인한 지식 그래프에서 메시지와 관련된 노드/관계를 컨텍스트로 주입한다.
   const knowledgeContext = await buildKnowledgeContext(workspaceId, input.message);
+  // 세션 메모리: 같은 워크스페이스의 관련 과거 세션 요약을 회상해 컨텍스트로 주입한다(Hermes식).
+  const sessionMemory = await buildSessionMemoryContext(
+    workspaceId,
+    chatSession.id,
+    input.message,
+  );
 
   // 워크스페이스에 실제 LLM API가 등록되어 있으면 LLM 기반 초안 생성 시도.
   // 법규/공법 질문은 citation 강제 규칙 때문에 항상 검색 기반 플로우를 따른다.
@@ -152,6 +159,7 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
         siblingText,
         documentOutline,
         knowledgeContext,
+        sessionMemory,
         role: agentRole,
       });
       // 실제 LLM이 등록됐으면 결과를 그대로 쓴다. 실패해도 mock 문구로 숨기지 않고
@@ -198,6 +206,9 @@ export async function chat(userId: string, input: z.infer<typeof chatRequestSche
     targetId: chatSession.id,
     after: { message: input.message, proposedActions: actions.map((a) => a.id) },
   });
+
+  // 세션 메모리 갱신: 대화가 쌓이면 요약을 만들어 이후 세션 간 회상에 쓴다(내부에서 임계치/실패 처리).
+  await summarizeSessionIfNeeded(workspaceId, chatSession.id);
 
   return {
     chatSessionId: chatSession.id,
@@ -379,6 +390,7 @@ async function planWithLlm(
     siblingText?: string;
     documentOutline?: string;
     knowledgeContext?: string;
+    sessionMemory?: string;
     role?: AgentRole;
   },
 ): Promise<PlanResult> {
@@ -424,6 +436,7 @@ async function planWithLlm(
   const prompt = [
     `문서 제목: ${args.documentTitle ?? '(없음)'}`,
     args.documentOutline ? `문서 구조(아웃라인):\n${args.documentOutline}` : '',
+    args.sessionMemory ?? '',
     args.knowledgeContext ?? '',
     args.selectedBlockText ? `선택된 블록 내용: ${args.selectedBlockText}` : '',
     args.siblingText ? `선택 블록 주변 맥락:\n${args.siblingText}` : '',

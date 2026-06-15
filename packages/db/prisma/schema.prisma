@@ -138,6 +138,9 @@ model ChatSession {
   documentId String?
   projectId  String?
   title      String?
+  /** 세션 간 회상을 위한 LLM 요약 (Hermes식 cross-session memory) */
+  summary    String?
+  summaryAt  DateTime?
   createdAt  DateTime      @default(now())
   document   Document?     @relation(fields: [documentId], references: [id])
   messages   ChatMessage[]
