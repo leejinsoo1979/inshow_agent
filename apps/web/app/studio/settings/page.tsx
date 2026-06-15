@@ -52,20 +52,6 @@ export default function SettingsPage() {
       .catch(() => setError('로그인이 필요합니다. 스튜디오에서 먼저 로그인해 주세요.'));
   }, []);
 
-  // OAuth 계정 연동 콜백 결과(?oauth=success|error) 표시
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauth = params.get('oauth');
-    if (oauth === 'success') setNotice('계정이 연결되었습니다. 이제 연결된 계정으로 응답합니다.');
-    else if (oauth === 'error') setError(params.get('reason') || '계정 연결에 실패했습니다.');
-    if (oauth) window.history.replaceState({}, '', '/studio/settings');
-  }, []);
-
-  function connectAccount(p: 'openai' | 'anthropic') {
-    if (!workspaceId) return;
-    window.location.href = `/api/settings/llm/oauth/${p}/start?workspaceId=${workspaceId}`;
-  }
-
   const loadDevices = useCallback((wsId: string) => {
     apiFetch<{ devices: typeof devices }>(`/api/companion/devices?workspaceId=${wsId}`)
       .then((d) => setDevices(d.devices))
@@ -217,68 +203,6 @@ export default function SettingsPage() {
           </div>
           {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
           {notice && <p className="mb-4 text-sm text-zinc-700">{notice}</p>}
-
-          {/* 계정 연동 (Codex/ChatGPT · Claude OAuth) */}
-          <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-800">AI 에이전트 계정 연동</h2>
-            <p className="mb-4 text-xs text-zinc-500">
-              <b>Codex(ChatGPT) 구독 계정은 OAuth로 연결할 수 없습니다</b> (OpenAI 미지원). 구독 계정은
-              아래 <b>‘기기 연결(로컬 워커)’</b>을 사용하세요. Claude OAuth는 관리자가 OAuth 클라이언트를
-              등록한 경우에만 동작합니다.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {(
-                [
-                  ['openai', 'Codex / ChatGPT'],
-                  ['anthropic', 'Claude'],
-                ] as const
-              ).map(([p, label]) => {
-                const linked = configs.find((c) => c.provider === p && c.authType === 'oauth');
-                return (
-                  <div
-                    key={p}
-                    className="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-zinc-800">{label}</p>
-                      <p className="truncate text-[11px] text-zinc-400">
-                        {linked ? '● 연결됨' : '○ 미연결'}
-                        {linked?.model ? ` · ${linked.model}` : ''}
-                      </p>
-                    </div>
-                    {linked ? (
-                      <button
-                        onClick={() => handleDelete(linked.id)}
-                        disabled={busy}
-                        className="shrink-0 rounded-md border border-zinc-300 px-2.5 py-1 text-xs text-zinc-600 hover:border-zinc-900 disabled:opacity-50"
-                      >
-                        연결 해제
-                      </button>
-                    ) : p === 'openai' ? (
-                      <button
-                        onClick={() =>
-                          document
-                            .getElementById('device-link')
-                            ?.scrollIntoView({ behavior: 'smooth' })
-                        }
-                        className="shrink-0 rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:border-zinc-900"
-                      >
-                        기기 연결 사용 ↓
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => connectAccount(p)}
-                        disabled={!workspaceId}
-                        className="shrink-0 rounded-md bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-700 disabled:opacity-50"
-                      >
-                        계정으로 연결
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
 
           {/* 기기 연결 (로컬 컴패니언 워커 — Codex/Claude 구독 CLI) */}
           <section id="device-link" className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
