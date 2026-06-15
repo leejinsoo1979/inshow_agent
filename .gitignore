@@ -41,3 +41,4 @@ packages/db/prisma/*.db
 next-env.d.ts
 .storage/
 .claude/settings.json
+.vercel
