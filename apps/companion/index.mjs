@@ -16,8 +16,8 @@
  *   - ARCHI_COMPANION_CMD 로 실행 명령 override 가능(테스트용, 예: echo)
  */
 import { spawn } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const CONFIG_PATH = join(homedir(), '.archi-companion.json');
@@ -63,11 +63,14 @@ async function register(code, flags) {
   console.log(`   이제 'node apps/companion/index.mjs run' 으로 워커를 실행하세요.`);
 }
 
-/** prompt를 받아 도구 CLI를 실행하고 stdout을 반환 */
+const TIMEOUT_MS = Number(process.env.ARCHI_COMPANION_TIMEOUT || 180_000);
+
+/** prompt를 받아 도구 CLI를 비대화 모드로 실행하고 최종 텍스트를 반환 */
 function runTool(tool, prompt) {
   return new Promise((resolve) => {
     let cmd;
     let args;
+    let outFile = null;
     if (process.env.ARCHI_COMPANION_CMD) {
       const parts = process.env.ARCHI_COMPANION_CMD.split(' ');
       cmd = parts[0];
@@ -76,24 +79,61 @@ function runTool(tool, prompt) {
       cmd = 'claude';
       args = ['-p', prompt];
     } else {
+      // codex 비대화 실행: stdin 대기 방지(아래 stdio), git 미신뢰 디렉터리 허용,
+      // read-only 샌드박스(셸 실행/수정 없음), 최종 메시지는 파일로 추출.
+      outFile = join(tmpdir(), `archi-codex-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`);
       cmd = 'codex';
-      args = ['exec', prompt];
+      args = ['exec', '--skip-git-repo-check', '-s', 'read-only', '-o', outFile, prompt];
     }
-    const child = spawn(cmd, args, { env: process.env });
+    // stdin은 닫는다(codex가 stdin을 읽으며 멈추지 않도록)
+    const child = spawn(cmd, args, { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     let err = '';
+    let done = false;
+    const finish = (payload) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (outFile) {
+        try {
+          if (existsSync(outFile)) unlinkSync(outFile);
+        } catch {
+          /* ignore */
+        }
+      }
+      resolve(payload);
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish({
+        error: `시간 초과(${TIMEOUT_MS / 1000}s). codex가 응답하지 않습니다 — 'codex login'(구독 로그인)이 되어 있는지 확인하세요.`,
+      });
+    }, TIMEOUT_MS);
+
     child.stdout.on('data', (d) => (out += d.toString()));
     child.stderr.on('data', (d) => (err += d.toString()));
     child.on('error', (e) => {
       if (e.code === 'ENOENT') {
-        resolve({ error: `'${cmd}' 명령을 찾을 수 없습니다. CLI 설치 및 로그인(예: codex login) 후 다시 시도하세요.` });
+        finish({ error: `'${cmd}' 명령을 찾을 수 없습니다. CLI 설치 및 로그인(codex login) 후 다시 시도하세요.` });
       } else {
-        resolve({ error: String(e.message || e) });
+        finish({ error: String(e.message || e) });
       }
     });
     child.on('close', (codeNum) => {
-      if (codeNum === 0) resolve({ result: out.trim() || '(빈 출력)' });
-      else resolve({ error: (err || out).trim().slice(0, 3000) || `종료 코드 ${codeNum}` });
+      // codex는 -o 파일의 '최종 메시지'가 가장 깔끔하다. 없으면 stdout 사용.
+      let fileText = '';
+      if (outFile && existsSync(outFile)) {
+        try {
+          fileText = readFileSync(outFile, 'utf8').trim();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (codeNum === 0) {
+        finish({ result: fileText || out.trim() || '(빈 출력)' });
+      } else {
+        finish({ error: (err || fileText || out).trim().slice(0, 3000) || `종료 코드 ${codeNum}` });
+      }
     });
   });
 }
