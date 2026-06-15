@@ -81,21 +81,30 @@ describe('LLM API 등록', () => {
     expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('grok');
   });
 
-  it('Claude(anthropic)는 API provider 스키마에서 거부된다', async () => {
+  it('Claude(anthropic)·OpenAI·Gemini·Grok provider가 스키마에서 허용된다', async () => {
     const { workspace } = await createUserWithWorkspace();
-    const result = registerLlmConfigSchema.safeParse({
-      workspaceId: workspace.id,
-      provider: 'anthropic',
-      apiKey: 'sk-ant-should-fail',
-    });
-    expect(result.success).toBe(false);
-    // 허용된 provider만 통과
-    for (const p of ['openai', 'google', 'grok'] as const) {
+    for (const p of ['openai', 'anthropic', 'google', 'grok'] as const) {
       expect(
         registerLlmConfigSchema.safeParse({ workspaceId: workspace.id, provider: p, apiKey: 'key12345' })
           .success,
       ).toBe(true);
     }
+    // 미지원 provider는 거부
+    expect(
+      registerLlmConfigSchema.safeParse({ workspaceId: workspace.id, provider: 'cohere', apiKey: 'key12345' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('anthropic 키 등록 시 Claude provider가 선택된다', async () => {
+    const { user, workspace } = await createUserWithWorkspace();
+    await registerLlmConfig(user.id, {
+      workspaceId: workspace.id,
+      provider: 'anthropic',
+      apiKey: 'sk-ant-test-1234',
+      model: 'claude-sonnet-4-6',
+    });
+    expect((await getLlmProviderForWorkspace(workspace.id)).name).toBe('anthropic');
   });
 
   it('등록된 provider가 선택되고, 삭제하면 mock으로 돌아간다', async () => {

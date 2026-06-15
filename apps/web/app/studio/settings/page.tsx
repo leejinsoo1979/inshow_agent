@@ -19,6 +19,7 @@ type LlmConfig = {
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI (GPT)',
+  anthropic: 'Anthropic (Claude)',
   google: 'Google (Gemini)',
   grok: 'xAI (Grok)',
   custom: 'Custom',
@@ -141,7 +142,7 @@ export default function SettingsPage() {
           <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-1 text-sm font-semibold text-zinc-800">에이전트 LLM API 등록</h2>
             <p className="mb-4 text-xs text-zinc-500">
-              OpenAI(GPT), Google(Gemini), xAI(Grok) API 키를 등록합니다. API 키는 암호화되어
+              OpenAI(GPT), Anthropic(Claude), Google(Gemini), xAI(Grok) API 키를 등록합니다. API 키는 암호화되어
               저장되며 화면에는 끝 4자리만 표시됩니다. 등록하면 AI 에이전트가 mock 대신 실제
               모델로 응답합니다. (관리자 전용)
             </p>
@@ -156,6 +157,7 @@ export default function SettingsPage() {
                   className="rounded-lg border border-zinc-300 px-2 py-2 text-sm"
                 >
                   <option value="openai">OpenAI (GPT)</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
                   <option value="google">Google (Gemini)</option>
                   <option value="grok">xAI (Grok)</option>
                   <option value="custom">Custom</option>

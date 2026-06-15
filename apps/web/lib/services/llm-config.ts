@@ -1,5 +1,6 @@
 import { prisma } from '@archi/db';
 import {
+  AnthropicProvider,
   GeminiProvider,
   GrokProvider,
   MockLlmProvider,
@@ -16,6 +17,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
   google: 'Gemini',
   grok: 'Grok',
+  anthropic: 'Claude',
 };
 
 /**
@@ -29,7 +31,7 @@ export async function getChatModelOptions(userId: string, documentId: string) {
     Capabilities.VIEW_DOCUMENTS,
   );
   const configs = await prisma.llmProviderConfig.findMany({
-    where: { workspaceId, provider: { in: ['openai', 'google', 'grok'] } },
+    where: { workspaceId, provider: { in: ['openai', 'google', 'grok', 'anthropic'] } },
     orderBy: { createdAt: 'desc' },
   });
   const active = configs.find((c) => c.isActive) ?? configs[0] ?? null;
@@ -86,10 +88,10 @@ export async function setChatModel(
   return { provider: config.provider, model: input.model };
 }
 
-// 지원 provider: OpenAI, Google(Gemini), Grok(xAI). Anthropic(Claude) API는 사용하지 않는다.
+// 지원 provider: OpenAI, Anthropic(Claude), Google(Gemini), Grok(xAI).
 export const registerLlmConfigSchema = z.object({
   workspaceId: z.string().min(1),
-  provider: z.enum(['openai', 'google', 'grok', 'custom']),
+  provider: z.enum(['openai', 'anthropic', 'google', 'grok', 'custom']),
   apiKey: z.string().min(8, 'API 키를 입력해 주세요.').max(500),
   model: z.string().max(100).optional(),
   baseUrl: z.string().url('올바른 URL을 입력해 주세요.').optional(),
@@ -214,6 +216,7 @@ const FALLBACK_MODELS: Record<string, string[]> = {
   openai: ['gpt-4.1', 'gpt-4.1-mini', 'o4-mini', 'gpt-4o', 'gpt-4o-mini'],
   google: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
   grok: ['grok-4', 'grok-3', 'grok-3-mini'],
+  anthropic: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
 };
 
 /**
@@ -223,7 +226,7 @@ const FALLBACK_MODELS: Record<string, string[]> = {
 export async function listAvailableModels(
   userId: string,
   workspaceId: string,
-  provider: 'openai' | 'google' | 'grok',
+  provider: 'openai' | 'anthropic' | 'google' | 'grok',
 ): Promise<{ models: string[]; live: boolean }> {
   await requireWorkspaceCapability(userId, workspaceId, Capabilities.MANAGE_LLM_PROVIDERS);
   const config = await prisma.llmProviderConfig.findFirst({
@@ -243,7 +246,7 @@ export async function listAvailableModels(
 }
 
 /** 채팅과 무관한 모델(임베딩/음성/이미지/검열/스냅샷 등)을 걸러낸다 */
-function isChatModel(provider: 'openai' | 'google' | 'grok', id: string): boolean {
+function isChatModel(provider: 'openai' | 'anthropic' | 'google' | 'grok', id: string): boolean {
   const lower = id.toLowerCase();
   // 공통 제외: 임베딩/음성/이미지/검열/리얼타임/튜닝 등
   if (
@@ -258,6 +261,10 @@ function isChatModel(provider: 'openai' | 'google' | 'grok', id: string): boolea
     if (!/^(gpt-|o\d|chatgpt)/.test(lower)) return false;
     if (/\d{4}-\d{2}-\d{2}|-\d{4}$|preview|instruct|audio|search/.test(lower)) return false;
     return true;
+  }
+  if (provider === 'anthropic') {
+    // claude-* 채팅 모델. Anthropic ids는 날짜가 붙어 있어 날짜 제외 규칙을 적용하지 않는다.
+    return lower.startsWith('claude');
   }
   if (provider === 'google') {
     if (!lower.startsWith('gemini-')) return false;
@@ -291,10 +298,22 @@ function sortModelsNewestFirst(ids: string[]): string[] {
 }
 
 async function fetchProviderModels(
-  provider: 'openai' | 'google' | 'grok',
+  provider: 'openai' | 'anthropic' | 'google' | 'grok',
   apiKey: string,
   baseUrl?: string,
 ): Promise<string[]> {
+  if (provider === 'anthropic') {
+    const base = baseUrl?.replace(/\/$/, '') || 'https://api.anthropic.com';
+    const res = await fetch(`${base}/v1/models?limit=200`, {
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { data?: { id?: string }[] };
+    const ids = (data.data ?? [])
+      .map((m) => m.id ?? '')
+      .filter((id) => id && isChatModel('anthropic', id));
+    return sortModelsNewestFirst(ids);
+  }
   if (provider === 'google') {
     const base = baseUrl?.replace(/\/$/, '') || 'https://generativelanguage.googleapis.com';
     const res = await fetch(`${base}/v1beta/models?pageSize=200`, {
@@ -511,12 +530,19 @@ export async function getLlmProviderForWorkspace(workspaceId: string): Promise<L
       }
       return new OpenAIProvider({ apiKey, ...common });
     }
+    case 'anthropic': {
+      if (config.authType === 'oauth') {
+        const authToken = await ensureFreshOAuthToken('anthropic', config);
+        return new AnthropicProvider({ authToken, ...common });
+      }
+      return new AnthropicProvider({ apiKey, ...common });
+    }
     case 'google':
       return new GeminiProvider({ apiKey, ...common });
     case 'grok':
       return new GrokProvider({ apiKey, ...common });
     default:
-      // anthropic(Claude API 비활성) / custom 등은 mock으로 폴백.
+      // custom 등 미지원 provider는 mock으로 폴백.
       return new MockLlmProvider();
   }
 }
