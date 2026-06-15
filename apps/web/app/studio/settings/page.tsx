@@ -222,8 +222,9 @@ export default function SettingsPage() {
           <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
             <h2 className="mb-1 text-sm font-semibold text-zinc-800">AI 에이전트 계정 연동</h2>
             <p className="mb-4 text-xs text-zinc-500">
-              Codex(ChatGPT)·Claude 계정으로 로그인해 연동합니다. 연동하면 API 키 없이 계정 기반으로
-              동작합니다. (계정 연결에는 관리자의 OAuth 클라이언트 설정이 필요할 수 있습니다.)
+              <b>Codex(ChatGPT) 구독 계정은 OAuth로 연결할 수 없습니다</b> (OpenAI 미지원). 구독 계정은
+              아래 <b>‘기기 연결(로컬 워커)’</b>을 사용하세요. Claude OAuth는 관리자가 OAuth 클라이언트를
+              등록한 경우에만 동작합니다.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
@@ -253,6 +254,17 @@ export default function SettingsPage() {
                       >
                         연결 해제
                       </button>
+                    ) : p === 'openai' ? (
+                      <button
+                        onClick={() =>
+                          document
+                            .getElementById('device-link')
+                            ?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                        className="shrink-0 rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:border-zinc-900"
+                      >
+                        기기 연결 사용 ↓
+                      </button>
                     ) : (
                       <button
                         onClick={() => connectAccount(p)}
@@ -269,8 +281,10 @@ export default function SettingsPage() {
           </section>
 
           {/* 기기 연결 (로컬 컴패니언 워커 — Codex/Claude 구독 CLI) */}
-          <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="mb-1 text-sm font-semibold text-zinc-800">기기 연결 (로컬 워커)</h2>
+          <section id="device-link" className="mb-8 rounded-xl border border-zinc-200 bg-white p-5">
+            <h2 className="mb-1 text-sm font-semibold text-zinc-800">
+              기기 연결 (로컬 워커) — Codex 구독은 여기
+            </h2>
             <p className="mb-3 text-xs text-zinc-500">
               내 컴퓨터에서 도는 워커를 연결하면 <b>Codex/Claude 구독 계정 CLI</b>로 작업을 실행합니다
               (헤르메스 방식). 토큰은 내 컴퓨터에만 저장됩니다.
